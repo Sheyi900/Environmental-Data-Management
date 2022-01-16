@@ -1,0 +1,282 @@
+
+# Week 9
+
+## Package `tidyr`
+
+`tidyr` is a package that makes it easy to "tidy" your data. Tidy data is data that's easy to work with: it's easy to manage (with `dplyr`), visualise (with `ggplot2` or `ggvis`) and model (with R’s hundreds of modelling packages). The two most important properties of tidy data are:
+
+- Each column is a variable.
+- Each row is an observation.
+
+Arranging your data in this way makes it easier to work with because you have a consistent way of referring to variables (as column names) and observations (as row indices). When use tidy data and tidy tools, you spend less time worrying about how to feed the output from one function into the input of another, and more time answering your questions about the data.
+
+To tidy messy data, you first identify the variables in your dataset, then use the tools provided by `tidyr` to move them into columns. `tidyr` provides three main functions for tidying your messy data: `gather()`, `separate()`, and `spread()`.
+
+`gather()` takes multiple columns, and gathers them into key-value pairs: it makes "wide" data longer. Other names for `gather` include `melt` (reshape2), `pivot` (spreadsheets) and `fold` (databases). Here's an example how you might use `gather()` on a made-up dataset. In this experiment we've given three people two different drugs and recorded their heart rate:
+
+```{r}
+messy <- data.frame(
+  name = c("Wilbur", "Petunia", "Gregory"),
+  a = c(67, 80, 64),
+  b = c(56, 90, 50)
+)
+messy
+```
+We have three variables (`name`, `drug`, and `heartrate`), but only `name` is currently in a column. We use `gather()` to gather the `a` and `b` columns into key-value pairs of `drug` and `heartrate`:
+
+```{r}
+tidy <- gather(messy, drugs, heartrate, -1)
+
+## or
+
+tidy <- messy %>%
+              gather(drug, heartrate, a:b)
+```
+
+Sometimes two variables are clumped together in one column. `separate()` allows you to tease them apart (`extract()` works similarly but uses `regexp` groups instead of a splitting pattern or position). Take this example from stackoverflow (modified slightly for brevity). We have some measurements of how much time people spend on their phones, measured at two locations (work and home), at two times. Each person has been randomly assigned to either treatment or control.
+```{r}
+set.seed(10)
+messy <- data.frame(
+  id = 1:4,
+  trt = sample(rep(c('control', 'treatment'), each = 2)),
+  work.T1 = runif(4),
+  home.T1 = runif(4),
+  work.T2 = runif(4),
+  home.T2 = runif(4)
+)
+```
+To tidy this data, we first use `gather()` to turn columns `work.T1`, `home.T1`, `work.T2` and `home.T2` into a key-value pair of key and time. (Only the first eight rows are shown to save space.)
+```{r}
+tidier <- messy %>%
+  gather(key, time, -id, -trt)
+tidier %>% head(8)
+```
+Next we use `separate()` to split the key into location and time, using a regular expression to describe the character that separates them.
+
+```{r}
+tidy <- tidier %>%
+  separate(key, into = c("location", "time"), sep = "\\.") 
+tidy %>% head(8)
+```
+The last tool, `spread()`, takes two columns (a key-value pair) and spreads them in to multiple columns, making “long” data wider. Spread is known by other names in other places: it’s `cast` in `reshape2`, `unpivot` in spreadsheets and `unfold` in databases. `spread()` is used when you have variables that form rows instead of columns. You need `spread()` less frequently than `gather()` or `separate()` so to learn more, check out the documentation and the demos.
+
+Just as `reshape2` did less than `reshape`, `tidyr` does less than `reshape2`. It’s designed specifically for tidying data, not general reshaping. In particular, existing methods only work for data frames, and `tidyr` never aggregates. This makes each function in `tidyr` simpler: each function does one thing well. 
+
+You can learn more about the underlying principles in the tidy data paper by Wickham. To see more examples of data tidying, read the vignette, `vignette("tidy-data")`, or check out the demos, `demo(package = "tidyr")`. 
+
+
+## Reshape: Long versus Wide
+
+Wide data has a column for each variable. For example, this is wide-format data:
+```
+#   ozone   wind  temp
+# 1 23.62 11.623 65.55
+# 2 29.44 10.267 79.10
+# 3 59.12  8.942 83.90
+# 4 59.96  8.794 83.97
+```
+
+And this is long-format data:
+```
+#    variable  value
+# 1     ozone 23.615
+# 2     ozone 29.444
+# 3     ozone 59.115
+# 4     ozone 59.962
+# 5      wind 11.623
+# 6      wind 10.267
+# 7      wind  8.942
+# 8      wind  8.794
+# 9      temp 65.548
+# 10     temp 79.100
+# 11     temp 83.903
+# 12     temp 83.968
+```
+Long-format data has a column for possible variable types and a column for the values of those variables. Long-format data isn't necessarily only two columns. For example, we might have ozone measurements for each day of the year. In that case, we could have another column for day. In other words, there are different levels of "longness". The ultimate shape you want to get your data into will depend on what you are doing with it.
+
+It turns out that you need wide-format data for some types of data analysis and long-format data for others. In reality, you need long-format data much more commonly than wide-format data. For example, `ggplot2` requires long-format data (technically tidy data), `plyr` requires long-format data, and most modelling functions (such as `lm()`, `glm()`, and `gam()`) require long-format data. But people often find it easier to record their data in wide format.
+
+
+
+### Wide- to long-format data: the `melt` function
+For this example we'll work with the `airquality` dataset that is built into R. First we'll change the column names to lower case to make them easier to work with. Then we'll look at the data:
+
+```{r}
+names(airquality) <- tolower(names(airquality))
+head(airquality)
+```
+What happens if we run the function `melt` with all the default argument values?
+```{r}
+aql <- melt(airquality) # [a]ir [q]uality [l]ong format
+head(aql)
+tail(aql)
+```
+By default, `melt` has assumed that all columns with numeric values are variables with values. Often this is what you want. Maybe here we want to know the values of `ozone`, `solar.r`, `wind`, and `temp` for each month and day. We can do that with `melt` by telling it that we want `month` and `day` to be "ID variables." ID variables are the variables that identify individual rows of data.
+```{r}
+aql <- melt(airquality, id.vars = c("month", "day"))
+head(aql)
+```
+What if we wanted to control the column names in our long-format data? `melt` lets us set those too all in one step:
+```{r}
+aql <- melt(airquality, id.vars = c("month", "day"),
+  variable.name = "climate_variable", 
+  value.name = "climate_value")
+head(aql)
+```
+### Long- to wide-format data: the cast functions
+Whereas going from wide- to long-format data is pretty straightforward, going from long- to wide-format data can take a bit more thought. It usually involves some head scratching and some trial and error for all but the simplest cases. Let’s go through some examples.
+
+In `reshape2` there are multiple `cast` functions. Since you will most commonly work with `data.frame` objects, we'll explore the `dcast` function. (There is also `acast` to return a vector, matrix, or array.)
+
+Let's take the long-format `airquality` data and cast it into some different wide formats. To start with, we'll recover the same format we started with and compare the two.
+
+`dcast` uses a formula to describe the shape of the data. The arguments on the left refer to the ID variables and the arguments on the right refer to the measured variables. Coming up with the right formula can take some trial and error at first. So, if you’re stuck don’t feel bad about just experimenting with formulas. There are usually only so many ways you can write the formula.
+
+Here, we need to tell `dcast` that `month` and `day` are the ID variables (we want a column for each) and that variable describes the measured variables. Since there is only one remaining column, `dcast` will figure out that it contains the values themselves. We could explicitly declare this with `value.var`. (And in some cases it will be necessary to do so.)
+```{r}
+aql <- melt(airquality, id.vars = c("month", "day"))
+aqw <- dcast(aql, month + day ~ variable)
+head(aqw)
+
+head(airquality) # original data
+
+```
+So, besides re-arranging the columns, we’ve recovered our original data.
+
+One confusing "mistake" you might make is casting a dataset in which there is more than one value per data cell. For example, this time we won’t include day as an ID variable:
+```{r}
+dcast(aql, month ~ variable)
+```
+When you run this in R, you’ll notice the warning message:
+```
+> # Aggregation function missing: defaulting to length
+```
+And if you look at the output, the cells are filled with the number of data rows for each month-climate combination. The numbers we're seeing are the number of days recorded in each month. When you cast your data and there are multiple values per cell, you also need to tell `dcast` how to aggregate the data. For example, maybe you want to take the mean, or the median, or the sum. Let’s try the last example, but this time we'll take the mean of the climate values. We'll also pass the option `na.rm = TRUE` through the `...` argument to remove NA values. (The `...` let’s you pass on additional arguments to your `fun.aggregate` function, here `mean`.)
+
+```{r}
+dcast(aql, month ~ variable, fun.aggregate = mean, na.rm = TRUE)
+```
+Unlike `melt`, there are some other fancy things you can do with `dcast` that I'm not covering here. It's worth reading the help file `?dcast`. For example, you can compute summaries for rows and columns, subset the columns, and fill in missing cells in one call to `dcast`.
+
+## `tidyr` versus `reshape2`
+What is the difference between the two packages `tidyr` and `reshape2`? Let us examine where their purposes overlap and where they differ by comparing the functions `gather()`, `separate()`, and `spread()`, from `tidyr`, with the functions `melt()`, `colsplit()`, and `dcast()`, from `reshape2`.
+
+### Data tidying
+Data tidying is the operation of transforming data into a clear and simple form that makes it easy to work with. “Tidy data” represent the information from a dataset as data frames where each row is an observation and each column contains the values of a variable (i.e. an attribute of what we are observing). Compare the two data frames below  to get an idea of the differences: `example.tidy` is the tidy version of `example.messy`, the same information is organized in two different ways.
+
+```
+example.messy
+##              treatmenta treatmentb
+## John Smith           NA          2
+## Jane Doe             16         11
+## Mary Johnson          3          1
+example.tidy
+##           name trt result
+## 1   John Smith   a     NA
+## 2     Jane Doe   a     16
+## 3 Mary Johnson   a      3
+## 4   John Smith   b      2
+## 5     Jane Doe   b     11
+## 6 Mary Johnson   b      1
+```
+
+### From the wide to the long format: `gather()` vs `melt()`
+We now begin by reviewing how we can bring data from the "wide" to the "long" format.
+
+Let's start loading some data: we have measurements of how much time people spend on their phones, measured at two locations (work and home), at two times. Each person has been randomly assigned to either treatment or control.
+```{r}
+set.seed(10)
+messy <- data.frame(id = 1:4,
+                    trt = sample(rep(c('control', 'treatment'), each = 2)),
+                    work.T1 = runif(4),
+                    home.T1 = runif(4),
+                    work.T2 = runif(4),
+                    home.T2 = runif(4))
+messy
+```
+Our first step is to put the data in the tidy format, to do that we use `tidyr`’s functions `gather()` and `separate()`. Following Wickham’s tidy data definition, this data frame is not tidy because some variable values are in the column names. We bring this messy data frame from the wide to the long format by using the `gather()` function. We want to gather all the columns, except for the `id` and `trt` ones, in two columns key and value:
+```{r}
+gathered.messy <- gather(messy, key="variable", value="value", -id, -trt)
+head(gathered.messy)
+```
+Note that in `gather()` we used bare variable names to specify the names of the key, value, `id` and `trt` columns.
+
+We can get the same result with the `melt()` function from `reshape2`:
+```{r}
+molten.messy <- melt(messy, 
+                     variable.name = "variable",
+                     value.names = "value",
+                     id.vars = c("id", "trt"))
+head(molten.messy)
+```
+We now compare the two functions by running them over the data without any further parameter and see what happen:
+```{r}
+head(gather(messy))
+head(melt(messy))
+```
+We see a different behaviour: `gather()` has brought messy into a long data format with a warning by treating all columns as variable, while `melt()` has treated `trt` as an “id variables”. Id columns are the columns that contain the identifier of the observation that is represented as a row in our data set. Indeed, if `melt()` does not receive any `id.variables` specification, then it will use the factor or character columns as id variables. `gather()` requires the columns that needs to be treated as ids to be removed, all the other columns are going to be used as key-value pairs.
+
+Despite those last different results, we have seen that the two functions can be used to perform the exactly same operations on data frames, and only on data frames! Indeed, `gather()` cannot handle matrices or arrays, while `melt()` can as shown below.
+```{r}
+set.seed(3)
+M <- matrix(rnorm(6), ncol = 3)
+dimnames(M) <- list(letters[1:2], letters[1:3])
+melt(M)
+```
+```
+> gather(M)
+Error in UseMethod("gather_") : 
+  no applicable method for 'gather_' applied to an object of class "c('matrix', 'double', 'numeric')"
+> 
+```
+
+### Split a column: `separate()` vs `colsplit()`
+Our next step is to split the column key into two different columns in order to separate the location and time variables and obtain a tidy data frame:
+```{r}
+tidy <- separate(gathered.messy,
+                 variable, into = c("location", "time"), sep = "\\.") 
+res.tidy <- cbind(molten.messy[1:2], 
+                  colsplit(molten.messy[, 3], "\\.", c("location", "time")),
+                  molten.messy[4])
+
+head(tidy)
+head(res.tidy)
+```
+Again, the result is the same but we need a workaround: because `colsplit()` operates only on a single column we use `cbind()` to insert the new two columns in the data frame. `separate()` performs all the operation at once reducing the possibility of making mistakes.
+
+### From the long to the wide format: `spread()` vs `dcast()`
+Finally, we compare `spread()` with `dcast()` using the data frame example for the `spread()` documentation itself. Briefly, `spread()` is complementary to `gather()` and brings data from the long to the wide format.
+```{r}
+set.seed(14)
+stocks <- data.frame(time = as.Date('2018-01-01') + 0:9,
+                     X = rnorm(10, 0, 1),
+                     Y = rnorm(10, 0, 2),
+                     Z = rnorm(10, 0, 4))
+stocksm <- gather(stocks, stock, price, -time)
+spread.stock <- spread(stocksm, stock, price)
+head(spread.stock)
+cast.stock <- dcast(stocksm, formula = time ~ stock, value.var = "price")
+head(cast.stock)
+```
+Again, the same result produced by spread() can be obtained using dcast() by specifying the correct formula.
+
+In the next session, we are going to modify the formula parameter in order to perform some data aggregation and compare further the two packages.
+
+## Data aggregation
+Up to now we made `reshape2` following `tidyr`, showing that everything you can do with `tidyr` can be achieved by `reshape2`, too, at the price of a some workarounds. As we now go on with our simple example we will get out of the purposes of `tidyr` and have no more functions available for our needs. Now we have a tidy data set – one observation per row and one variable per column – to work with. We show some aggregations that are possible with `dcast()` using the `tips` data frame from `reshape2`. `tips` contains the information one waiter recorded about each tip he received over a period of a few months working in one restaurant.
+```{r}
+head(tips)
+m.tips <- melt(tips)
+## Using sex, smoker, day, time as id variables
+head(m.tips)
+```
+We use `dcast()` to get information on the average total bill, tip and group size per day and time:
+```{r}
+dcast(m.tips, day+time ~ variable, mean)
+```
+Averages per smoker or not in the group.
+```{r}
+dcast(m.tips, smoker ~ variable, mean)
+```
+There is no function in the `tidyr` package that allows us to perform a similar operation, the reason is that `tidyr` is designed only for data tidying and not for data reshaping.
+

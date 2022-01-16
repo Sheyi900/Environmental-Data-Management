@@ -1,0 +1,379 @@
+
+
+
+
+# Week 6: Reshape
+
+
+## Package `reshape`
+
+Package `reshape` provides a unified approach to aggregation, based on
+an extended formula notation.  The core idea is to create a "melted"
+version of a dataset using the `melt` function, which can then be cast
+(using function `cast`) into an object with the desired orientation.
+This means that we want to rearrange the form (not the content) of the
+data to suit the need of analysis.
+
+Before using the package, we need to familiarize the "anatomy" of a
+dataset. We started by thinking of data interms of vector, matrix, and
+data frame.  In a data frame, observations are in rows and variables
+are in columns.  To reshape a dataset, we can classify variables into
+"identifier" and "measured" variables. 
+
+An identifier (`id`) identifies the unit that the measurements take
+place.  Id variables are usually discrete. A measured variable
+represents what is measured on that unit, typically the response or
+predictor variables. 
+
+For example, in the `iris` dataset, we have fout measured variables
+(`Sepal.Length, Sepal.Width, Petal.Length, Petal.Width`) and one id
+variables (`Species`).  Later we reshaped the data to have three
+columns, `Value, Variable`, and `Species`.  In this reshaped dataset,
+the column `Value` is the measured variable and `Variables, Species`
+are id variables.  In other words, we can generalize the data
+classification to one measured variable and the rest are id variables.
+
+### Melting data
+The dataset with one column of measured varaible values and id
+variables is the most basic data form which we can generate new
+forms. 
+
+To produce the basic form of dataset is not a simple task.  The
+process of creating it is called melting.  The `reshape` package
+provides the function `melt` to carry out the task.  For example,  
+```{r}
+iris.melt <- melt(iris, id = "Species",
+                  measured=c("Sepal.Width", "Sepal.Length", "Petal.Length","Petal.width"))
+head(iris.melt)
+```
+The only assumption when using `melt` is that all measured variables
+are in the same type (e.g., numeric, factor, date).
+
+The dataset `iris.melt` is now a molten data, ready to be casted into
+different forms.  In some cases, your datasets are already in the
+molten form.  All you need to do is to make sure that the value column
+is named `value`. 
+
+### Casting molten data
+We now have a molten dataset and we can cast it into different forms.
+All we need is to tell the function `cast` what form we need using a
+formula. 
+
+The casting formula describes the shape of the output format.  The
+general form of a formula includes two groups of variables separated
+by a tilde.  Variables on the left-hand side of the tilde are column
+variables and those on the right-hand side are row variables.  For
+example,  
+
+```{r}
+cast(iris.melt, Species ~ variable, length)
+cast(iris.melt, Species ~ variable, mean)
+```
+Sumamrizes the sample size and mean.
+
+The function `dcast` casts a molten data into data frame format.  The
+minimum input are (1) a molten data and (2) a formula.  The formula
+can also take $\cdot$ (a single dot) and $\cdots$ (three dots) to
+represent no variable and all other variables (not already included in
+the formula).
+
+```{r}
+cast(iris.melt, Species ~ variable)
+cast(iris.melt, ... ~ variable)
+cast(iris.melt, Species+variable ~ .)
+```
+
+What if we want to return to the original data frame?  In this case,
+the molten data lacks one piece of information:
+```{r}
+iris$rep <- rep(1:50, 3)
+iris.melt2 <- melt(iris, id=c("Species", "rep"),
+                   measured=c("Sepal.Width", "Sepal.Length", "Petal.Length","Petal.width"))
+cast(iris.melt2, Species+rep ~ variable)
+```
+
+### The French Fries Example
+
+```{r}
+ffm <- melt(french_fries, id=1:4, na.rm=T)
+
+### Counting nonmissing values:
+cast(ffm, .~., length)
+
+### counting by treatment
+cast(ffm, treatment ~ . , length)
+cast(ffm, . ~ treatment, length)
+
+### rep by treatment
+cast(ffm, rep ~ treatment)
+
+### treatment by rep:
+cast(ffm, treatment ~ rep)
+
+cast(ffm, treatment + rep ~ .)
+cast(ffm, rep + treatment ~ .)
+cast(ffm, . ~ rep+treatment)
+```
+
+Summary:
+```{r}
+cast(ffm, rep+treatment~variable)
+cast(ffm, rep+treatment~variable, mean)
+cast(ffm, rep+treatment~variable, sd)
+cast(ffm, treatment ~ ., c(mean, sd))
+cast(ffm, treatment ~ ., summary)
+cast(ffm, treatment ~ variable + result_variable, c(mean, sd))
+cast(ffm, treatment + variable ~ result_variable, c(mean, sd))
+```
+
+Conditional operator
+
+```{r}
+cast(ffm, treatment~rep|variable, mean)
+```
+## Package `reshape2`
+
+Reshape2 is a reboot of the reshape package, a new package for
+reshaping data that is much more focused and     faster.
+
+This version improves speed at the cost of functionality.
+
+What's new in reshape2:
+
+-- considerably faster and more memory efficient thanks to a much
+better underlying algorithm that uses the power and speed of
+subsetting to the fullest extent, in most cases only making a single
+copy of the data. `cast`is replaced by two functions depending on the
+output type: dcast produces data frames, and acast produces
+matrices/arrays. 
+
+-- multidimensional margins are now possible: grand_row and grand_col
+have been dropped: now the name of the margin refers to the variable
+that has its value set to (all).
+
+-- some features have been removed such as the | cast operator, and
+the ability to return multiple values from an aggregation function.
+
+-- a new cast syntax which allows you to reshape based on functions of
+variables (based on the same underlying syntax as plyr): better
+development practices like namespaces and tests.
+
+
+## Reshaping Data
+THe advantage of using R for statistical analysis is that R comes with
+functions to carry out statistical analysis.  But each function
+requires a specific input format.  As a result, reshaping data to suit
+for the need of a function is the most commonly performed task. In
+most cases, R functions require input using data frame.  We will focus
+on working with data frames.
+
+### Modifying data frame variables
+
+Data frames are lists.  New variables can be creates by simply
+assigning their value to a column that doesn't already exist in the
+data frame.  Let's use the loblolly pine growth data as an example.
+This dataset has three columns recording the growth of loblolly pine
+trees over time.
+```{r}
+head(Loblolly)
+```
+Variable transformation is probably the most common modification to a dataset.  We add the transformed variable into an additional column:
+```{r}
+Loblolly$logheight <- log(Loblolly$height)
+```
+(When we use data from R or R packages, all changes we made will be
+kept in the memory of the current R session.  Data from the system
+won't be changed.) 
+
+When the data frame name is long, we often use the function
+`transform` to reduce the amount of typing.   
+```{r}
+Loblolly <- transform(Loblolly, logheight=log(height))
+```
+
+We access variables in a data frame through the data frame name plus
+the `$` operator and variable names.  The function `with` helps to
+reduce the repeated typing of the data frame name.  When using `with`,
+R puts the data frame temperarily on the top of the search list: 
+```{r}
+logheight<-with(Loblolly, log(height))
+```
+When this line is submitted, R looks into the data frame `Loblolly` first to find `height`.  If a wrong name was typed, R would not be able to find it in the data frame, R will continue to search outside the data frame.
+```{r}
+height2 <- runif(20, 3, 85)
+logheight2 <- with(Loblolly, log(height2))
+```
+We can remove a column of a data frame by setting its values to be `NULL`:
+```{r}
+head(Loblolly)
+Loblolly$logheight <- NULL
+head(Loblolly)
+```
+When a similar operation is needed for several columns and we want to
+overwrite the original versions, we can put the multiple columns we
+want to replace on the left hand side of the assignment operator.  For
+example, if we want to convert the unit of iris measurements from
+centimeters to inches, we need to divide each of the 4 measurement
+variables by 2.54: 
+```{r}
+iris[,-5] <- sapply(iris[,-5], function(x) x/2.54)
+```
+
+Recoding a variable is another form of data transformation.  For
+example, when the actual value of sepal length is not important, but
+whether the length is above or below 6 cm is important, we would like
+to have a column to indicate whether sepal length is above 6 or
+not. This is a simple logic comparison: 
+```{r}
+largesepal <- iris$Sepal.Length > 6
+```
+In some cases, the function `ifelse` is very handy. The function takes
+a logical vector as its first argument and two other arguments: the
+first provides a value for the case where elements of the input
+logical vector are true, and the second for the case where they are
+false.  For example, suppose that we have experiments carried out in
+10 sites and we realized that sites 2 and 4 can be grouped in one
+group and the rest in another group.  The grouping can be created as
+follows: 
+```
+newgroup <- ifelse(sites %in% c(2,4), 1, 2)
+```
+To make thing more complicated, suppose that sites 2 and 4 are in
+group 1, sites 5 and 8 are in group 2 and the rest are in group 3: 
+```
+newgroup <- ifelse(sites %in% c(2,4), 1, 
+                   ifelse (sites %in% c(5, 8), 2, 3))
+```
+
+### Reshaping a data frame
+Not all data frame have all the necessary identifiers.  For example,
+the `iris` data frame lacks the flower indentifier.  Let's work with
+the iris data for one species: 
+```{r}
+iris.setosa <- iris[iris$Species=="setosa",-5]
+head(iris.setosa)
+```
+Many R functions for statistical analysis requires that the data frame be reshaped to have a column of measured value and a column of variable.  
+```{r}
+setosaM <- melt(iris.setosa,
+                measured=c("Sepal.Width", "Sepal.Length", "Petal.Length","Petal.width")) 
+```
+In this case, a much simpler approach would be to use the function `stack`:
+```{r}
+setosaS <- stack(iris.setosa)
+```
+
+The function `unstack` returns the data to its original form:
+```{r}
+setosaUS <- unstack(setosaS, values~ind)
+```
+
+### Function `reshape`
+Not to be confused with the package `reshape`, the function `reshape`
+is written for data with repeated measures to convert a data frame
+between long and wide forms.  A long form data frame puts multiple
+measurements of a subject (replicates) in separate rows, while the
+wide form puts them in the same row.  Here is an example of long form: 
+```{r}
+obs <- data.frame(subj = rep(1:4, each = 3), 
+                  time=rep(1:3, 4),
+                  x=rnorm(12), y=rnorm(12))
+head(obs)
+```
+A wide format has 4 rows, one for each subject:
+```{r}
+obs.wide <- reshape(obs, idvar="subj", v.names=c("x","y"), 
+                         timevar="time", direction="wide")
+obs.wide
+str(obs.wide)
+
+reshape(obs.wide, idvar="subj", direction="long")
+```
+
+### Combining Data Frames
+
+The two frequently used functions are `rbind` (binding data frames by
+row) and `cbind` (binding by column). 
+```{r}
+x <- data.frame(a=c("A","B","C"), b=c(1,2,3))
+y <- data.frame(a=c("D","E","F","G"), b=c(3,4,5,6))
+
+z <- rbind(x, y)
+```
+When using `rbind`, the two data frames must have the same names.  When using `cbind`, the two data frames must have the same number of rows (or one is a multipler of the other):
+```{r}
+cbind(y, z=c(1,2))
+cbind(y, z=rep(1:2, 2))
+```
+But not:
+```
+cbind(x, z=c(1,2))
+```
+
+Merging two data frames based on a common factor is often necessary.
+The function `merge` provides a flexible means for merging. 
+```{r}
+x<-data.frame(a=c(1,2,4,5,6), x=c(9,12,14,21,8))
+y<-data.frame(a=c(1,3,4,6), y=c(8, 14, 19, 2))
+merge(x, y)
+```
+The result may not be what you expect.  
+
+By default, `merge` will find the common name in `x` and `y` to use as
+the variable for merging (argument `by`).  If the merging variable has
+different names in `x` and `y`, we can use argument `by.x` and `by.y`.
+The argument `all` (default `all=FALSE`) is a logical value indicating
+whether all rows in both `x` and `y` should be included: 
+```{r}
+merge(x, y, all=T)
+```
+If only all rows of `x` (`y`) are needed, we specify `all.x=T` (`all.y=T`).
+```
+merge(x, y, all.x=T)
+merge(x, y, all.y=T)
+```
+
+One more example of `merge`:
+```{r}
+authors <- data.frame(
+    surname = I(c("Tukey", "Venables", "Tierney", "Ripley", "McNeil")),
+    nationality = c("US", "Australia", "US", "UK", "Australia"),
+    deceased = c("yes", rep("no", 4)))
+books <- data.frame(
+    name = I(c("Tukey", "Venables", "Tierney",
+             "Ripley", "Ripley", "McNeil", "R Core")),
+    title = c("Exploratory Data Analysis",
+              "Modern Applied Statistics ...",
+              "LISP-STAT",
+              "Spatial Statistics", "Stochastic Simulation",
+              "Interactive Data Analysis",
+              "An Introduction to R"),
+    other.author = c(NA, "Ripley", NA, NA, NA, NA,
+                     "Venables & Smith"))
+
+m1 <- merge(authors, books, by.x="surname", by.y="name")
+m2 <- merge(books, authors, by.x = "name", by.y = "surname")
+m3 <- merge(books, authors, by.x = "name", by.y = "surname", all=T)
+```
+
+### Merging using index
+The function `merge` is convenient.  In many cases, especially when we want to mearge data by a set of unique index (e.g., site names), we can simply use subscripting.  For example:
+```{r}
+x <- data.frame(site=c("S3","S2","S1"), Ag=c(20, 31, 19))
+y <- data.frame(site=c("S1","S1","S1","S2","S2","S3","S3","S1","S2","S3"),
+                y=rnorm(10))
+```
+Because the site names are the same, we can first sort `x` by site:
+```{r}
+x <- x[order(x$site),]
+x
+```
+then:
+```{r}
+oo <- as.numeric(ordered(y$site))
+oo
+y$Ag <- x$Ag[oo]
+y
+```
+
+

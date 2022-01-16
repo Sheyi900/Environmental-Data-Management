@@ -1,0 +1,599 @@
+
+
+# Week 10: dplyr
+```{r, echo=F, results='hide',message=FALSE}
+source("_FrontMatter.R")
+packages(tidyverse)
+```
+
+When working with data you must:
+
+- Figure out what you want to do.
+- Describe those tasks in the form of a computer program.
+- Execute the program.
+
+The `dplyr` package makes these steps fast and easy:
+
+- By constraining your options, it simplifies how you can think about common data manipulation tasks.
+- It provides simple "verbs", functions that correspond to the most common data manipulation tasks, to help you translate those thoughts into code.
+- It uses efficient data storage backends, so you spend less time waiting for the computer.
+
+This week, we learn `dplyr`'s basic set of tools, and how to apply them to data frames. 
+
+By "constraining" our options, I mean that we often use the "split-apply-combine" strategy for data management.  Splitting a large data into pieces, upon which, we can carry out operations easily, and the results are then combined.  This strategy is useful when we need to carry out some operation repeatedly on subsets of the data.  This need can appear in all stages of a data analysis problem.  For example, 
+- When preparing data, we often need to perform group-wise ranking, standardization, normalization, detrending, or creating new variables that are easily calculated on a per-group basis.
+- When creating summaries.
+- In modeling or data analysis when we need to fit models for each group.
+
+Using loops is one way of performing group-wise operations.  However, code for looping is difficult to read and prone to error. In R, looping is also slow.  R provides a number of functions (e.g., `apply`) for group-wise computation without using looping.  However, these functions are limited to simple operations.  The R package `dplyr` is written and maintained by Hadley Wickham. It provides some great, easy-to-use functions that are very handy when performing exploratory data analysis and manipulation. The idea behind the package is the data analysis strategy of "split-apply-combine," which divides a large data frame into pieces, apply the necessary operation to individual pieces, and combine the results to produce the desired data.  
+
+Before going in to the details, let's use the data `airquality` to see how the package works.
+
+The head of the dataset looks like this:
+```{r}
+head(airquality)
+```
+
+`dplyr` can work with data frames as is, but if you're dealing with large data, it's worthwhile to convert them to a `tbl_df`: 
+```{r}
+airquality <- tbl_df(airquality)
+```
+
+`tbl_df` is a wrapper around a data frame that won't accidentally print a lot of data to the screen.
+
+
+## Filter
+The `filter` function will return all the rows that satisfy a following condition. For example below will return all the rows where Temp is larger than 70.
+
+```{r}
+filter(airquality, Temp > 70)
+```
+Another example of filter is to return all the rows where Temp is larger than 80 and Month is after May.
+
+```{r}
+filter(airquality, Temp > 80 & Month > 5)
+```
+
+## Mutate
+`mutate` is used to add new variables to the data. For example lets adds a new column that displays the temperature in Celsius.
+
+```{r}
+mutate(airquality, TempInC = (Temp - 32) * 5 / 9)
+```
+
+We can also write our own function to make the transformation.  This allows us to do more complicated data transformation.
+```{r}
+FtoC <- function(x) (x-32)*5/9
+mutate(airquality, TempInC=FtoC(Temp))
+```
+
+## Summarise
+The `summarise` function is used to summarise multiple values into a single value. It is very powerful when used in conjunction with the other functions in the `dplyr` package, as demonstrated below. `na.rm = TRUE` will remove all NA values while calculating the mean, so that it doesn't produce spurious results.
+
+```{r}
+summarise(airquality, mean(Temp, na.rm = TRUE))
+```
+
+## Group By
+The `group_by` function is used to group data by one or more variables. Will group the data together based on the Month, and then the `summarise` function is used to calculate the mean temperature in each month.
+
+```{r}
+summarise(group_by(airquality, Month), mean(Temp, na.rm = TRUE))
+```
+
+## Sample
+The `sample` function is used to select random rows from a table. The first line of code randomly selects ten rows from the dataset, and the second line of code randomly selects 15 rows (10% of the original 153 rows) from the dataset.
+
+```{r}
+sample_n(airquality, size = 10)
+sample_frac(airquality, size = 0.1)
+```
+This functionality is useful for resampling-based analysis (e.g., bootstrapping). 
+
+## Count
+The `count` function tallies observations based on a group. It is slightly similar to the table function in the base package. For example:
+
+```{r}
+count(airquality, Month)
+
+```
+This means that there are 31 rows with Month = 5, 30 rows with Month = 6, and so on.
+
+## Arrange
+The `arrange` function is used to arrange rows by variables. Currently, the airquality dataset is arranged based on Month, and then Day. We can use the arrange function to arrange the rows in the descending order of Month, and then in the ascending order of Day.
+
+```{r}
+arrange(airquality, desc(Month), Day)
+```
+## Pipe
+The pipe or chain operator, represented by `%>%` can be used to chain code together. It is very useful when you are performing several operations on data, and don't want to save the output at each intermediate step.
+
+For example, let's say we want to remove all the data corresponding to Month = 5, group the data by month, and then find the mean of the temperature each month. The conventional way to write the code for this would be:
+
+```{r}
+filteredData <- filter(airquality, Month != 5)
+groupedData <- group_by(filteredData, Month)
+summarise(groupedData, mean(Temp, na.rm = TRUE))
+```
+
+With piping, the above code can be rewritten as:
+
+```{r}
+airquality %>% 
+    filter(Month != 5) %>% 
+    group_by(Month) %>% 
+    summarise(mean(Temp, na.rm = TRUE))
+```
+This is a very basic example, and the usefulness may not be very apparent, but as the number of operations/functions perfomed on the data increase, the pipe operator becomes more and more useful!
+
+
+## Explaining `dplyr` -- A More Complicated Example  
+
+
+### Data: `nycflights13`
+
+To explore the basic data manipulation verbs of `dplyr`, we'll start with the built in `nycflights13` data frame. This dataset contains all 336,776 flights that departed from New York City in 2013. The data comes from the US Bureau of Transportation Statistics, and is documented in `?nycflights13`.
+```{r}
+packages(nycflights13)
+dim(flights)
+head(flights)
+```
+## Single table verbs
+
+Package `dplyr` aims to provide a function for each basic verb of data manipulation:
+
+`filter()` (and `slice()`)
+
+`arrange()`
+
+`select()` (and `rename()`)
+
+`distinct()`
+
+`mutate()` (and `transmute()`)
+
+`summarise()`
+
+`sample_n()` (and `sample_frac()`)
+
+
+## Filter rows with `filter()`
+
+`filter()` allows you to select a subset of rows in a data frame. The first argument is the name of the data frame. The second and subsequent arguments are the expressions that filter the data frame:
+
+For example, we can select all flights on January 1st with:
+
+```{r}
+filter(flights, month == 1, day == 1)
+```
+
+This is equivalent to the more verbose code in base R:
+```{r}
+flights[flights$month == 1 & flights$day == 1, ]
+```
+
+`filter()` works similarly to `subset()` except that you can give it any number of filtering conditions, which are joined together with & (not && which is easy to do accidentally!). You can also use other boolean operators:
+
+```{r}
+filter(flights, month == 1 | month == 2)
+```
+
+To select rows by position, use `slice()`:
+
+```{r}
+slice(flights, 1:10)
+```
+
+### Arrange rows with `arrange()`
+
+`arrange()` works similarly to `filter()` except that instead of filtering or selecting rows, it reorders them. It takes a data frame, and a set of column names (or more complicated expressions) to order by. If you provide more than one column name, each additional column will be used to break ties in the values of preceding columns:
+```{r}
+arrange(flights, year, month, day)
+```
+Use `desc()` to order a column in descending order:
+
+```{r}
+arrange(flights, desc(arr_delay))
+```
+`dplyr::arrange()` works the same way as `plyr::arrange()`. It's a straightforward wrapper around `order()` that requires less typing. The previous code is equivalent to:
+
+```{r}
+flights[order(flights$year, flights$month, flights$day), ]
+flights[order(flights$arr_delay, decreasing = TRUE), ] 
+```
+or 
+
+```{r}
+flights[order(-flights$arr_delay), ]
+```
+### Select columns with `select()`
+
+Often you work with large datasets with many columns but only a few are actually of interest to you. `select()` allows you to rapidly zoom in on a useful subset using operations that usually only work on numeric variable positions:
+
+```{r}
+# Select columns by name
+dplyr::select(flights, year, month, day)
+# Select all columns between year and day (inclusive)
+dplyr::select(flights, year:day)
+# Select all columns except those from year to day (inclusive)
+dplyr::select(flights, -(year:day))
+```
+This function works similarly to the select argument in `base::subset()`. Because the `dplyr` philosophy is to have small functions that do one thing well, it's its own function in `dplyr`.
+
+There are a number of helper functions you can use within `select()`, like `starts_with()`, `ends_with()`, `matches()`, and `contains()`. These let you quickly match larger blocks of variables that meet some criterion. See `?select` for more details.
+
+You can rename variables with `select()` by using named arguments:
+
+```{r}
+#select(flights, tail_num = tailnum)
+```
+But because `select()` drops all the variables not explicitly mentioned, it's not that useful. Instead, use `rename()`:
+
+```{r}
+#rename(flights, tail_num = tailnum)
+```
+
+### Extract distinct (unique) rows
+
+Use `distinct()` to find unique values in a table:
+
+```{r}
+distinct(flights, tailnum)
+distinct(flights, origin, dest)
+```
+(This is very similar to `base::unique()` but should be much faster.)
+
+### Add new columns with mutate()
+
+Besides selecting sets of existing columns, it's often useful to add new columns that are functions of existing columns. This is the job of `mutate()`:
+
+```{r}
+mutate(flights,
+  gain = arr_delay - dep_delay,
+  speed = distance / air_time * 60)
+```
+`dplyr::mutate()` works to `base::transform()`. The key difference between `mutate()` and `transform()` is that mutate allows you to refer to columns that you've just created:
+
+```{r}
+mutate(flights,
+  gain = arr_delay - dep_delay,
+  gain_per_hour = gain / (air_time / 60)
+)
+```
+But:
+```
+transform(flights,
+  gain = arr_delay - delay,
+  gain_per_hour = gain / (air_time / 60)
+)
+#> Error: object 'gain' not found
+```
+If you only want to keep the new variables, use transmute():
+
+```{r}
+transmute(flights,
+  gain = arr_delay - dep_delay,
+  gain_per_hour = gain / (air_time / 60)
+)
+```
+
+### Summarise values with `summarise()`
+
+The last verb is `summarise()`. It collapses a data frame to a single row:
+
+```{r}
+summarise(flights,
+  delay = mean(dep_delay, na.rm = TRUE))
+```
+Below, we'll see how this verb can be very useful.
+
+### Randomly sample rows with sample_n() and sample_frac()
+
+You can use `sample_n()` and `sample_frac()` to take a random sample of rows: use `sample_n()` for a fixed number and `sample_frac()` for a fixed fraction.
+
+```{r}
+sample_n(flights, 10)
+sample_frac(flights, 0.01)
+```
+Use `replace = TRUE` to perform a bootstrap sample. If needed, you can weight the sample with the weight argument.
+
+### Commonalities
+
+You may have noticed that the syntax and function of all these verbs are very similar:
+
+- The first argument is a data frame.
+
+- The subsequent arguments describe what to do with the data frame. Notice that you can refer to columns in the data frame directly without using $.
+
+- The result is a new data frame
+
+- Together these properties make it easy to chain together multiple simple steps to achieve a complex result.
+
+These five functions provide the basis of a language of data manipulation. At the most basic level, you can only alter a tidy data frame in five useful ways: you can reorder the rows (`arrange()`), pick observations and variables of interest (`filter()` and `select()`), add new variables that are functions of existing variables (`mutate()`), or collapse many values to a summary (`summarise()`). The remainder of the language comes from applying the five functions to different types of data. For example, I'll discuss how these functions work with grouped data.
+
+## Grouped operations
+
+These verbs are useful on their own, but they become really powerful when you apply them to groups of observations within a dataset. In `dplyr`, you do this by with the `group_by()` function. It breaks down a dataset into specified groups of rows. When you then apply the verbs above on the resulting object they'll be automatically applied "by group". Most importantly, all this is achieved by using the same exact syntax you'd use with an ungrouped object.
+
+Grouping affects the verbs as follows:
+
+grouped `select()` is the same as ungrouped `select()`, except that grouping variables are always retained.
+
+grouped `arrange()` orders first by the grouping variables
+
+`mutate()` and `filter()` are most useful in conjunction with window functions (like `rank()`, or `min(x) == x`). They are described in detail in `vignette("window-functions")`.
+
+`sample_n()` and `sample_frac()` sample the specified number/fraction of rows in each group.
+
+`slice()` extracts rows within each group.
+
+`summarise()` is powerful and easy to understand, as described in more detail below.
+
+In the following example, we split the complete dataset into individual planes and then summarise each plane by counting the number of flights (`count = n()`) and computing the average distance (`dist = mean(Distance, na.rm = TRUE)`) and arrival delay (`delay = mean(ArrDelay, na.rm = TRUE)`). 
+```{r, fig.width=5, fig.height=3.75, fig.align="center"}
+by_tailnum <- group_by(flights, tailnum)
+delay <- summarise(by_tailnum,
+  count = n(),
+  dist = mean(distance, na.rm = TRUE),
+  delay = mean(arr_delay, na.rm = TRUE))
+delay <- filter(delay, count > 20, dist < 2000)
+# Interestingly, the average delay is only slightly related to the
+# average distance flown by a plane.
+plot( delay~dist, data=delay)
+```
+You use `summarise()` with aggregate functions, which take a vector of values and return a single number. There are many useful examples of such functions in base R like `min()`, `max()`, `mean()`, `sum()`, `sd()`, `median()`, and `IQR()`. `dplyr` provides a handful of others:
+
+- `n()`: the number of observations in the current group
+- `n_distinct(x)`: the number of unique values in x.
+- `first(x)`, `last(x)` and `nth(x, n)` - these work similarly to `x[1]`, `x[length(x)]`, and `x[n]` but give you more control over the result if the value is missing.
+
+For example, we could use these to find the number of planes and the number of flights that go to each possible destination:
+
+```{r}
+destinations <- group_by(flights, dest)
+summarise(destinations,
+  planes = n_distinct(tailnum),
+  flights = n()
+)
+```
+You can also use any function that you write yourself. For performance, `dplyr` provides optimised `C++` versions of many of these functions. If you want to provide your own `C++` function, see the hybrid-evaluation vignette for more details.
+
+When you group by multiple variables, each summary peels off one level of the grouping. That makes it easy to progressively roll-up a dataset:
+
+```{r}
+daily <- group_by(flights, year, month, day)
+(per_day   <- summarise(daily, flights = n()))
+(per_month <- summarise(per_day, flights = sum(flights)))
+(per_year  <- summarise(per_month, flights = sum(flights)))
+```
+However you need to be careful when progressively rolling up summaries like this: it's ok for sums and counts, but you need to think about weighting for means and variances (it's not possible to do this exactly for medians).
+
+## Chaining
+
+The `dplyr` API is functional in the sense that function calls don't have side-effects. You must always save their results. This doesn't lead to particularly elegant code, especially if you want to do many operations at once. You either have to do it step-by-step:
+
+```{r}
+a1 <- group_by(flights, year, month, day)
+a2 <- dplyr::select(a1, arr_delay, dep_delay)
+a3 <- summarise(a2,
+  arr = mean(arr_delay, na.rm = TRUE),
+  dep = mean(dep_delay, na.rm = TRUE))
+a4 <- filter(a3, arr > 30 | dep > 30)
+```
+Or if you don't want to save the intermediate results, you need to wrap the function calls inside each other:
+
+```{r}
+filter(
+  summarise(
+    dplyr::select(
+      group_by(flights, year, month, day),
+      arr_delay, dep_delay
+    ),
+    arr = mean(arr_delay, na.rm = TRUE),
+    dep = mean(dep_delay, na.rm = TRUE)
+  ),
+  arr > 30 | dep > 30
+)
+```
+This is difficult to read because the order of the operations is from inside to out. Thus, the arguments are a long way away from the function. To get around this problem, `dplyr` provides the `%>%` operator. `x %>% f(y)` turns into `f(x, y)` so you can use it to rewrite multiple operations that you can read left-to-right, top-to-bottom:
+
+```{r}
+flights %>%
+  group_by(year, month, day) %>%
+  dplyr::select(arr_delay, dep_delay) %>%
+  summarise(
+    arr = mean(arr_delay, na.rm = TRUE),
+    dep = mean(dep_delay, na.rm = TRUE)
+  ) %>%
+  filter(arr > 30 | dep > 30)
+```
+
+## A quick Summary
+
+I will use the mammals sleep data to illustrate the verbs of `dplyr`
+```{r}
+packages(downloader)
+url <- "https://raw.githubusercontent.com/genomicsclass/dagdata/master/inst/extdata/msleep_ggplot2.csv"
+filename <- "msleep_ggplot2.csv"
+if (!file.exists(filename)) download(url,filename)
+msleep <- read.csv("msleep_ggplot2.csv")
+head(msleep)
+```
+
+The columns (in order) correspond to the following:
+
+|------------|------------|
+|column name | Description|
+|name	| common name|
+|genus	| taxonomic rank|
+|vore	| carnivore, omnivore or herbivore?|
+|order	| taxonomic rank|
+|conservation	|the conservation status of the mammal|
+|sleep_total	| total amount of sleep, in hours|
+|sleep_rem	|rem sleep, in hours|
+|sleep_cycle	| length of sleep cycle, in hours|
+|awake	| amount of time spent awake, in hours|
+|brainwt	| brain weight in kilograms|
+|bodywt	| body weight in kilograms|
+--------|-------------------|
+
+Important dplyr verbs to remember
+
+|-----------|-------------|
+|dplyr verbs|	Description |
+|select()	 | select columns|
+|filter()	 | filter rows|
+|arrange() | re-order or arrange rows|
+|mutate()	 | create new columns|
+|summarise()| summarise values|
+|group_by() |	allows for group operations in the “split-apply-combine” concept |
+-----------|------------|
+
+### dplyr verbs in action
+
+The two most basic functions are `select()` and `filter()` which selects columns and filters rows, respectively.
+
+Selecting columns using `select()`
+
+```{r}
+## Select a set of columns: the name and the sleep_total columns.
+sleepData <- dplyr::select(msleep, name, sleep_total)
+head(sleepData)
+```
+
+To select all the columns except a specific column, use the "-" (subtraction) operator (also known as negative indexing)
+```{r}
+head(dplyr::select(msleep, -name))
+```
+
+To select a range of columns by name, use the ":" (colon) operator
+```{r}
+head(dplyr::select(msleep, name:order))
+```
+To select all columns that start with the character string "sl", use the function `starts_with()`
+```{r}
+head(dplyr::select(msleep, starts_with("sl")))
+```
+Some additional options to select columns based on a specific criteria include
+
+`ends_with()` = Select columns that end with a character string
+
+`contains()` = Select columns that contain a character string
+
+`matches()` = Select columns that match a regular expression
+
+`one_of()` = Select columns names that are from a group of names
+
+Selecting rows using `filter()`
+
+```{r}
+## Filter the rows for mammals that sleep a total of more than 16 hours.
+filter(msleep, sleep_total >= 16)
+```
+Filter the rows for mammals that sleep a total of more than 16 hours and have a body weight of greater than 1 kilogram.
+```{r}
+filter(msleep, sleep_total >= 16, bodywt >= 1)
+```
+Filter the rows for mammals in the *Perissodactyla* and *Primates* taxonomic order
+```{r}
+filter(msleep, order %in% c("Perissodactyla", "Primates"))
+```
+You can use the boolean operators (e.g. `>, <, >=, <=, !=, %in%`) to create the logical tests.
+
+Pipe operator: `%>%`
+
+Before we go any futher, let's introduce the pipe operator: `%>%`. `dplyr` imports this operator from another package (`magrittr`). This operator allows you to pipe the output from one function to the input of another function. Instead of nesting functions (reading from the inside to the outside), the idea of of piping is to read the functions from left to right.
+
+Here’s an example you have seen:
+```{r}
+head(dplyr::select(msleep, name, sleep_total))
+```
+Now in this case, we will pipe the msleep data frame to the function that will select two columns (name and sleep_total) and then pipe the new data frame to the function head() which will return the head of the new data frame.
+```{r}
+msleep %>% 
+    dplyr::select(name, sleep_total) %>% 
+    head
+```
+You will soon see how useful the pipe operator is when we start to combine many functions.
+
+Back to `dplyr` verbs in action
+
+Now that you know about the pipe operator (`%>%`), we will use it throughout the rest of the summary.
+
+Arrange or re-order rows using `arrange()`
+
+```{r}
+##To arrange (or re-order) rows by a particular column such as the taxonomic order, list the name of the column you want to arrange the rows by
+ msleep %>% arrange(order) %>% head
+```
+
+Now, we will select three columns from `msleep`, arrange the rows by the taxonomic order and then arrange the rows by `sleep_total`. Finally show the head of the final data frame
+```{r}
+msleep %>% 
+    dplyr::select(name, order, sleep_total) %>%
+    arrange(order, sleep_total) %>% 
+    head
+```
+
+Same as above, except here we filter the rows for mammals that sleep for 16 or more hours instead of showing the head of the final data frame
+```{r}
+msleep %>% 
+    dplyr::select(name, order, sleep_total) %>%
+    arrange(order, sleep_total) %>% 
+    filter(sleep_total >= 16)
+```
+
+Something slightly more complicated: same as above, except arrange the rows in the `sleep_total` column in a descending order. For this, use the function `desc()`
+```{r}
+msleep %>% 
+    dplyr::select(name, order, sleep_total) %>%
+    arrange(order, desc(sleep_total)) %>% 
+    filter(sleep_total >= 16)
+```
+
+Create new columns using `mutate()`
+
+The `mutate()` function will add new columns to the data frame. Create a new column called `rem_proportion` which is the ratio of rem sleep to total amount of sleep.
+```{r}
+msleep %>% 
+    mutate(rem_proportion = sleep_rem / sleep_total) %>%
+    head
+```
+You can many new columns using `mutate` (separated by commas). Here we add a second column called `bodywt_grams` which is the `bodywt` column in grams.
+```{r}
+msleep %>% 
+    mutate(rem_proportion = sleep_rem / sleep_total, 
+           bodywt_grams = bodywt * 1000) %>%
+    head
+```
+
+Create summaries of the data frame using `summarise()`
+
+The `summarise()` function will create summary statistics for a given column in the data frame such as finding the mean. For example, to compute the average number of hours of sleep, apply the mean() function to the column sleep_total and call the summary value avg_sleep.
+```{r}
+msleep %>% 
+    summarise(avg_sleep = mean(sleep_total))
+```
+There are many other summary statistics you could consider such `sd(), min(), max(), median(), sum(), n()` (returns the length of vector), `first()` (returns first value in vector), `last()` (returns last value in vector) and `n_distinct()` (number of distinct values in vector).
+
+```{r}
+msleep %>% 
+    summarise(avg_sleep = mean(sleep_total), 
+              min_sleep = min(sleep_total),
+              max_sleep = max(sleep_total),
+              total = n())
+```
+
+Group operations using `group_by()`
+
+The `group_by()` verb is an important function in `dplyr`. As we mentioned before it's related to concept of "split-apply-combine". We literally want to split the data frame by some variable (e.g. taxonomic order), apply a function to the individual data frames and then combine the output.
+
+Let's do that: split the `msleep` data frame by the taxonomic order, then ask for the same summary statistics as above. We expect a set of summary statistics for each taxonomic order.
+```{r}
+msleep %>% 
+    group_by(order) %>%
+    summarise(avg_sleep = mean(sleep_total), 
+              min_sleep = min(sleep_total), 
+              max_sleep = max(sleep_total),
+              total = n())
+```

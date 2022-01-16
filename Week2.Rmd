@@ -1,0 +1,530 @@
+
+
+
+
+# Week 2: Intoduction to R Programming
+
+## Importing Data into R
+
+### Typing Vectors and Matrices
+
+We used function `c` for entering small data into R. If we have a lot
+to type in, the function `scan` is more approrpiate when data are in
+the same mode.  We specify the mode by using argument `what=`.  The
+default mode for `scan` is numeric.  
+
+```
+	x <- scan()
+	1 3 1 3.2	
+	
+```
+We can change the default to read in character values:
+
+```
+  name <- scan(what="")
+  joe fred bob john
+  sam sue mary ann
+
+```
+To enter data with different modes
+
+```
+pets <- scan(what=list(a=0, b="", c=0))
+1 dog 3
+2 cat 4
+3 duck 8
+
+```
+
+We can enter a matrix:
+
+```
+x <- matrix(scan(), ncol=3)
+19 30 22
+2 5 1
+9 3 0
+11 34 56
+
+```
+
+### Reading Data Frame
+
+The most useful function for importing data to R is `read.table`.  It
+returns a data frame, suitable for reading data files with mixed
+modes.  When we have a single mode data file, `scan` is more
+efficient.  `read.table` expects each field in the input source to be
+separated by one or more separators (default: any of spaces, tabs,
+newlines or cariage returns).  The `sep=` argument can be used to
+sepcify alternative separators.  When there is no separator in the
+input data, but each variable occupies the same columns for every
+observation, we use `read.fwf` function.
+
+If the first line in your input data has variable names separated by
+the same separator as the data, the `heder=T` argument should be
+passed to `read.table` to use these names to identify columns.
+Alternatively, the `col.names=` argument can specify a character
+vector containing the variable names.
+
+The only required argument to `read.table` is a file name, URL, or
+connection object.  In Windows, make sure that **double backslashes**
+are used in pathnames.  Alternatively, we can use the Unix convention,
+single forwardslash, for pathnames.  You can also mix double
+backslashes and single forwardslash:
+
+```
+	my.data <- read.table("c:/myclass\\subject1\\notes/data\\mydata.txt")
+```
+
+Because it offers increased efficiency in storage, `read.table`
+automatically converts character variables to factors (check if it is true: `default.stringAsFactor()`).  This may cause
+some problem when trying to use the variable.  We can either change
+the global option `options(stringAsFactors=FALSE)`, or convert factors
+back to characters when needed.
+
+Any text after a `#` sign is treated as comment (not read into R).  If
+the source use a different character for comments (e.g., `*`), we can
+use the `comment.char=` argument.  If there are no comments, setting
+`comment.char=""` may speed up reading.
+
+The arguments `skip` and `nrows` allow us to skip a number of lines at
+the beginning of the file and read into R only a specific number of
+lines.
+
+`read.table` expects the same number of fields on each line and will
+return an error if it detects otherwise.  When `read.table` reports
+unequal number of fields, we can use the `count.fields` function to
+help determine where the problem is.
+
+Most of data files use comma or tab as separator.  R functions
+`read.csv`, `read.csv2`, and `read.delim` are wrappers for
+`read.table` with appropriate arguments set for comma-, semicolon-, or
+tab-delimited data, respectively.
+
+```{r, echo=FALSE}
+finnish <- read.csv(paste(dataDIR, "summerAll.csv", sep="/"), header=T)
+neuseEstuary <- read.csv(paste(dataDIR, "estuary.csv", sep="/"), header=T)
+antarctic <- read.csv(paste(dataDIR, "antarctic.csv", sep="/"), header=T)
+
+# head(finnish)
+# head(neuseEstuary)
+# head(antarctic)
+```
+
+### Fixed-with Input Files
+
+Many government agencies store data using fixed-width file -- input
+data is stored with no delimiters between values but with each
+variable occupying the same columns on each line of input.  The
+function `read.fwf` can be used for such files.  For an example of
+such files, we can go to [USGS Water Quality
+site](http://pubs.usgs.gov/dds/wqn96cd/). Stream flow and water
+quality data are stored under the ``Water Quality and Streamflow
+Data'' tab. 33 As an example, we download nutrient data from Maumee
+River (Waterville station) and the format file for water quality
+data. The format file from the USGS site describes the format of the
+file.  All files starts with basic information on sites and data
+collection:
+
+
+
+For data file with nutrient concentrations,
+
+
+
+To use `read.fwf`, we need to specify `widths=` with a vector of the
+widths of the fields to be read, using negative numbers to indicate
+columns to be skipped.  Because variable names are also specified in
+the format file, we will use `header=FALSE` and `col.names=` to give
+variable names.  The downloaded file is large. To avoid typing errors,
+I will copy and past the format file to extract the needed values --
+deleting text before the format and comment out text after the format number:
+```{r include=FALSE}
+
+colW <- c(
+8,#     Station number - the 8 digit station number uniquely identifying the station.
+4,#     Sample collection beginning year 
+2, #     Sample collection beginning month
+2, #     Sample collection beginning day
+4, #    Sample collection time
+4, #     Sample collection ending year 
+2, #     Sample collection ending month
+2, #     Sample collection ending day
+5, #     Sample collection agency code (parmeter code = 00027)
+5, #     Laboratory analysis agency code (parmeter code = 00028)
+8, #.3   Instantaneous streamflow value (parmeter code = 00061)
+1, #     Instantaneous streamflow remark code
+1, #     Instantaneous streamflow method code
+8, #.3     Value for DNH4, 00608, Nitrogen, ammonia, dissolved (mg/L as N)
+1, #       Remark code, DNH4
+1, #       Method code, DNH4
+8, #.3     Value for TNH4, 00610, Nitrogen, ammonia, total (mg/L as N)
+1, #       Remark code, TNH4
+1, #       Method code, TNH4
+8, #.3     Value for DKJN, 00623, Nitrogen, ammonia + organic, dissolved (mg/L as N)
+1, #       Remark code, DKJN
+1, #       Method code, DKJN
+8, #.3     Value for TKJN, 00625, Nitrogen, ammonia + organic, total (mg/L as N)
+1, #       Remark code, TKJN
+1, #       Method code, TKJN
+8, #.3     Value for DNO2, 00613, Nitrogen, nitrite, dissolved (mg/L as N)
+1, #       Remark code, DNO2
+1, #       Method code, DNO2
+8, #.3     Value for TNO2, 00615, Nitrogen, nitrite, total (mg/L as N)
+1, #       Remark code, TNO2
+1, #       Method code, TNO2
+8, #.3     Value for DNO3, 00631, Nitrogen, nitrate + nitrite, dissolved (mg/L as N)
+1, #       Remark code, DNO3
+1, #       Method code, DNO3
+8, #.3     Value for TNO3, 00630, Nitrogen, nitrate + nitrite, total (mg/L as N)
+1, #       Remark code, TNO3
+1, #       Method code, TNO3
+8, #.3     Value for DN, 00602, Nitrogen, dissolved (mg/L as N)
+1, #       Remark code, DN
+1, #       Method code, DN
+8, #.3     Value for TN, 00600, Nitrogen, total (mg/L as N)
+1, #       Remark code, TN
+1, #       Method code, TN
+8, #.3     Value for DP, 00666, Phosphorus, dissolved (mg/L as P)
+1, #       Remark code, DP
+1, #       Method code, DP
+8, #.3     Value for TP, 00665, Phosphorus, total (mg/L as P)
+1, #       Remark code, TP
+1, #       Method code, TP
+8, #.3     Value for DORTHO, 00671, Phosphorus, orthophosphate, dissolved (mg/L as P)
+1, #       Remark code, DORTHO
+1, #       Method code, DORTHO
+8, #.3     Value for TORTHO, 70507, Phosphorus, orthophosphate, total (mg/L as P)
+1, #       Remark code, TORTHO
+1, #       Method code, TORTHO
+8, #.3     Value for SED, 80154, Sediment, suspended (mg/L)
+1, #       Remark code, SED
+1, #       Method code, SED
+8, #.3     Value for SEDLESS, 70331, Sediment, suspended, (percent finer than 0.062 mm sieve diameter)
+1, #       Remark code, SEDLESS
+1, #       Method code, SEDLESS
+8, #.3     Value for DCARBON, 00681, Carbon, Organic, dissolved (mg/L as C)
+1, #       Remark code, DCARBON
+1, #       Method code, DCARBON
+8, #.3     Value for TCARBON, 00680, Carbon, Organic, total (mg/L as C)
+1, #       Remark code, TCARBON
+1, #       Method code, TCARBON
+8, #.3     Value for SCARBON, 00689, Carbon, Organic, suspended (mg/L as C)
+1, #       Remark code, SCARBON
+1 #      Method code, SCARBON
+)
+```
+Likewise, we need to name each column:
+
+```{r, include=FALSE}
+
+colN <- c(
+"station", # 1-8 I8 Station number - the 8 digit station number uniquely identifying the station.
+"byear", #  9-12    I4     Sample collection beginning year 
+"bmonth", # 13-14    I2     Sample collection beginning month
+"bday",  # 15-16    I2     Sample collection beginning day
+"time", # 17-20    I4     Sample collection time
+"eyear", # 21-24    I4     Sample collection ending year 
+"emonth", # 25-26    I2     Sample collection ending month
+"eday", # 27-28    I2     Sample collection ending day
+"agency", # 29-33    I5     Sample collection agency code (parameter code = 00027)
+"lab", # 34-38    I5     Laboratory analysis agency code (parameter code = 00028)
+"flow", # 39-46    F8.3   Instantaneous streamflow value (parameter code = 00061)
+"flowR",#    47     A1     Instantaneous streamflow remark code
+"flowM", #   48     A1     Instantaneous streamflow method code
+"DNH4", # 49-56    F8.3     Value for DNH4, 00608, Nitrogen, ammonia, dissolved (mg/L as N)
+"DNH4R", #  57      A1       Remark code, DNH4
+"DNH4M", #  58      A1       Method code, DNH4
+"TNH4", # 59-66    F8.3     Value for TNH4, 00610, Nitrogen, ammonia, total (mg/L as N)
+"TNH4R", #  67      A1       Remark code, TNH4
+"TNH4M", #  68      A1       Method code, TNH4
+"DKJN", # 69-76  F8.3  Value for DKJN, 00623, Nitrogen, ammonia + organic, dissolved (mg/L as N)
+"DKJNR", #  77      A1       Remark code, DKJN
+"DKJNM", #  78      A1       Method code, DKJN
+"TKJN", # 79-86    F8.3     Value for TKJN, 00625, Nitrogen, ammonia + organic, total (mg/L as N)
+"TKJNR", #  87      A1       Remark code, TKJN
+"TKJNM", #  88      A1       Method code, TKJN
+"DNO2", # 89-96    F8.3     Value for DNO2, 00613, Nitrogen, nitrite, dissolved (mg/L as N)
+"DNO2R", #  97      A1       Remark code, DNO2
+"DNO2M", #  98      A1       Method code, DNO2
+"TNO2", # 99-106   F8.3     Value for TNO2, 00615, Nitrogen, nitrite, total (mg/L as N)
+"TNO2R", #  107     A1       Remark code, TNO2
+"TNO2M", #  108     A1       Method code, TNO2
+"DNO3", # 109-116  F8.3  Value for DNO3, 00631, Nitrogen, nitrate + nitrite, dissolved (mg/L as N)
+"DNO3R", #  117     A1       Remark code, DNO3
+"DNO3M", #  118     A1       Method code, DNO3
+"TNO3", # 119-126  F8.3     Value for TNO3, 00630, Nitrogen, nitrate + nitrite, total (mg/L as N)
+"TNO3R", #  127     A1       Remark code, TNO3
+"TNO3M", #  128     A1       Method code, TNO3
+"DN", # 129-136  F8.3     Value for DN, 00602, Nitrogen, dissolved (mg/L as N)
+"DNR", #  137     A1       Remark code, DN
+"DNM", #  138     A1       Method code, DN
+"TN", # 139-146  F8.3     Value for TN, 00600, Nitrogen, total (mg/L as N)
+"TNR", #  147     A1       Remark code, TN
+"TNM", #  148     A1       Method code, TN
+"DP", # 149-156  F8.3     Value for DP, 00666, Phosphorus, dissolved (mg/L as P)
+"DPR", #  157     A1       Remark code, DP
+"DPM", #  158     A1       Method code, DP
+"TP", # 159-166  F8.3     Value for TP, 00665, Phosphorus, total (mg/L as P)
+"TPR", #  167     A1       Remark code, TP
+"TPM", #  168     A1       Method code, TP
+"DPO4", # 169-176 F8.3  Value for DORTHO, 00671, Phosphorus, orthophosphate, dissolved (mg/L as P)
+"DPO4R", #  177     A1       Remark code, DORTHO
+"DPO4M", #  178     A1       Method code, DORTHO
+"TPO4", # 179-186  F8.3     Value for TORTHO, 70507, Phosphorus, orthophosphate, total (mg/L as P)
+"TPO4R", #  187     A1       Remark code, TORTHO
+"TPO4M", #  188     A1       Method code, TORTHO
+"SED", # 189-196  F8.3     Value for SED, 80154, Sediment, suspended (mg/L)
+"SEDR", #  197     A1       Remark code, SED
+"SEDM", #  198     A1       Method code, SED
+"FSED", # 199-206  F8.3     Value for SEDLESS, 70331, Sediment, suspended, (percent finer than 0.062 mm sieve diameter)
+"FSEDR", #  207     A1       Remark code, SEDLESS
+"FSEDM", #  208     A1       Method code, SEDLESS
+"DOC", # 209-216  F8.3     Value for DCARBON, 00681, Carbon, Organic, dissolved (mg/L as C)
+"DOCR", #  217     A1       Remark code, DCARBON
+"DOCM", #  218     A1       Method code, DCARBON
+"TOC", # 219-226  F8.3     Value for TCARBON, 00680, Carbon, Organic, total (mg/L as C)
+"TOCR", #  227     A1       Remark code, TCARBON
+"TOCM", #  228     A1       Method code, TCARBON
+"SOC", # 229-236  F8.3     Value for SCARBON, 00689, Carbon, Organic, suspended (mg/L as C)
+"SOCR", #  237     A1       Remark code, SCARBON
+"SOCM" #  238     A1       Method code, SCARBON
+)
+```
+The above code should be kept, in case we have typed something wrong.  With `colW` and `colN`, we can now read the file into R:
+
+```{r Maumee}
+Maumee.data <- read.fwf(file="https://pubs.usgs.gov/dds/wqn96cd/wqn/wq/region04/04193500.nut", 
+                        widths=colW, col.names=colN, header=F)
+# head(Maumee.data)
+save(Maumee.data, file = "maumee.RData")
+```
+
+### Generating Data
+
+From time to time, we need to create data in R.  R has a number of ways to generate vectors of data.
+
+#### Sequences
+
+To generate a sequence of integers between two values, the colon operator (`:`) can be used:
+```{r}
+1:12
+```
+
+To create a vector of value from 10 to 100, each element separated by 5, we use:
+```{r}
+seq(from = 10, to = 100, by = 5)
+```
+Alternatively, we can specify the length of the generated sequence:
+```{r}
+seq(from = 10, by = 5, length = 10)
+```
+We can also general a sequence of values evenly spaced between two values
+```{r}
+seq(from=1, to=10, length=20)
+```
+
+Two functions frequently used in generating levels of a designed
+experiment.  One is `gl` (short for generate levels):
+
+```{r}
+gl(4, 3, 24) ## 4 levels, each with 3 replicates, and length 24
+thelevels <- data.frame(group=gl(3, 10, length=30),
+                        subgroup=gl(5, 2, length=30),
+                        obs = gl(2, 1, length=30))
+```
+
+The other function is `expand.grid`, which takes a number of sequences and returns a data frame with one row for each unique combinations of input values:
+```{r}
+oe <- expand.grid(odd=seq(1,5, by=2), even=seq(2,5, by=2))
+```
+This function is especially useful for generating data for plotting 3D
+plots (contour and perspective plot).
+
+### Random Number Generators
+
+R provides random number generators for about 20 probability
+distributions.  Names of functions for these generators start with
+letter `r` follwed by the abrreviation of the distribution.  For
+example `rnorm` is a generator for the normal distribution.  These
+functions take `n=` as the first argument (number of random numbers to
+be generated) and other arguments are based on different
+distributions.
+```{r}
+rnorm(10)
+```
+
+### Random Permutation
+
+The function `sample` is a flexible function for random permutation of
+a vector (when the first argument is a vector) or of the index
+starting from 1 (when the first argument is a single integer).
+```{r}
+sample(10, 3)
+sample(10)
+```
+
+### Spreadsheet
+
+The package `gdata` has a function `read.xls` that can be used to read
+Excel spreadsheet files.  The function requires `perl`, which is
+installed in OS X, Unix, and Linux, but not necessarily on Windows.
+`read.xls` translate a specified spreadsheet to a comma-separated
+file, then calls `read.csv` to read the file into R.
+
+## Saving R Data
+
+Each time when an R session ends, R will prompt you to save the
+`Workspace` (all data imported and processed) into a file named `.RData`
+in the working directory.  The saved data will be loaded
+automatically when R starts the next time.
+
+Most of the time, we don't need to save the entire work space, but
+only a few selected files.  For example, we can save file `x, y, z`
+using function `save`:
+```
+save(x,y,z, file="myxyz.RData")
+```
+
+Once the data is saved, it can be loaded with function `load`:
+```
+load("myxyz.RData")
+```
+
+### Writing R Objects to Files in ASCII Format 
+
+In many cases, we want to save data into text files.  In R, we use `write`.  It accepts an R
+object and the name of a file, and writes an ASCII representation of
+the object into the appropriate destination.  In most cases, we save
+numeric objects such as matrices.  When writing data into a text file,
+the file is filled by row.  The number of values to be written in a
+line is specified by the argument `ncolumns=`.  Because R stores a
+matrix by column, R will export the matrix in that order.  That is,
+the first column of a matrix will be saved to fill the first row in
+the output file.  If we want to save a matrix by row, we need to first
+transpose the matrix and specify `ncolumns=` accordingly.
+```
+write(t(state.x77), file="state.txt", ncolmns=ncol(state.x77))
+```
+
+For mixed mode data, like data frams, we use `write.table` to produce
+ASCII files.  The first argument of the function is the data object
+and the second argument is `file=`, the destination.  By default,
+character strings are surrounded by quotes.  this feature can be
+suppressed by using argument `quote=FALSE`.  We can also suppress row
+and column names by using `row.names=FALSE` and
+`col.names=FALSE`.  The `sep=` argument is used to specify a
+separator (default is a blank space).
+
+### Reading Data from Other Programs
+
+We often need to access data created by a program other than R or to
+create a data file that can be easily accepted.  The package `foreign`
+provides functions to read and write in formats supported by a number
+of different programs.
+
+Functions in `foreign` package
+---------------
+Function         | Purpose                              
+---------|---------------
+`data.restore`   | read `data.dump` output                  
+`read.S`         | or saved objects from S version 3        
+ \               | may work with older Splus objects    
+`read.dbf`       | saved object from DBF                    
+`read.dta`       | read saved objects from Stata            
+`write.dta`      | create a Stata saved object              
+`read.epinfo`    | read saved object from `epinfo`          
+`read.spss`      | read saved object from SPSS              
+`read.mtp`       | read Minitab Portable Worksheet file     
+`read.octave`    | GNU Octave                               
+`read.sport`     | SAS export format                        
+`read.systat`    | saved object from Systat rectangular data
+
+## Date Objects
+A commonly used method for processing dates and time in computer
+programming is the POSIX standard.  It measures dates and times in
+seconds since beginning of 1970 in UTC time zone.  In R,
+`{POSIXct` is the R date class for this standard.  The
+`POSIXlt` class breaks down the date object into year, month,
+day of the month, hour, minute, and second.  The `POSIXlt`
+class also calculates day of the week and day of the year (julian
+day, or ordinal day).  The `Date` class are similar but with dates only
+(without time).
+
+Typically, dates are entered as characters.  For example, dates are typically 
+entered in the U.S. using numeric values in a format of
+mm/dd/yyyy (e.g., 5/27/2000) or with month name plus numeric day and
+year (e.g., December 31 2013). When read into R, the
+date column becomes a factor variable.  We can use the function
+`as.Date` to convert the factor variable into dates:
+
+```
+> first.date <- as.Date("5/27/2000", format="%m/%d/%Y")
+> second.date <- as.Date("December 31 2003", format="%B %d %Y")
+> second.date - first.date
+```
+
+The first two lines convert two character strings to date class
+objects.  As date objects are numeric (days since the beginning of
+1970), we can use them to calculate days eclipsed between two dates.
+A more general function for converting date-time object is
+`strptime`, which converts a date-time character string to a
+POSIXlt class object, measuring time in seconds since the beginning of
+1970.
+
+```
+first.d <- strptime("5/27/2000 22:15:00",
+                    format="%m/%d/%Y %H:%M:%S")
+second.d <- strptime("December 31, 2003, 4:25:00",
+                     format="%B %d, %Y, %H:%M:%S")
+second.d - first.d
+```
+
+The format of a date object is defined by the POSIX standard, consists
+of a % followed by a single letter:
+
+
+Once a date object is created, we can extract relevant information
+associated with dates using function `format`. We now create a
+data frame with a date column:
+```
+> mytime <- data.frame(x = rnorm(100),
++                     date=as.Date(round(runif(100)*5000),
++                         origin="1970-01-01"))
+```
+We can add a column of month and a column of week days to the data frame:
+```
+> mytime$Month <- format(mytime$date, "%b")
+> mytime$weekday <- format(mytime$date, "%a")
+```
+
+We can also store date object as a POSIXlt class object, which is a
+list of nine elements:
+(1) seconds, (2) minutes, (3) hours, (4) day of month (1-31), (4)
+month of year (0-11), (5) month of the year (0-11), (6) years since
+1900, (7) day of the week (0, Sunday, through 6), (8) day of the year
+(0-365), and (9) daylight savings indicator. If we want to extract day
+of the year,
+month, and year as numeric vectors, we can simply assign the eighth
+(Julian day), fifth
+(month), and sixth (year) elements:
+
+```
+mydata$Julian <- as.POSIXlt(mydata$Date)[[8]]+1
+mydata$Month <- as.POSIXlt(mydata$Date)[[5]]+1
+mydata$Year <- as.POSIXlt(mydata$Date)[[6]]+1900
+```
+
+In the Maumee River data imported from the USGS site using `read.fwf`, 
+sampling dates were entered in three columns: `byear`, `bmonth`, and `bday`.
+To create a column of `dates`, we need to paste these three columns into a date object:
+```{r, echo=TRUE}
+Maumee.data$Dates <- as.Date(paste(Maumee.data$bmonth, 
+                                   Maumee.data$bday, 
+                                   Maumee.data$byear, 
+                                   sep="/"), 
+                             format="%m/%d/%Y")
+range(Maumee.data$Dates)
+#plot(c(0,1), c(0,1))
+```
+
+

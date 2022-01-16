@@ -1,0 +1,316 @@
+
+# Week 14: Maps
+
+##Introduction
+
+Have you ever crunched some numbers on data that involved spatial locations? If the answer is no, then boy are you missing out! So much spatial data to analyze and so little time.
+
+Since your time is precious, you know that attempting to create spatial plots in languages like Matlab or applications like Excel can be a tedious, long process. (And GIS softwares are not free, nor open source.) Thankfully there are a number of  R packages for processing spatial data.  Many of them can handle map.  
+
+We will use the Lake Erie HABs monitoring data as an example.
+
+```{r, message=FALSE}
+eriedata <- read.csv(paste(dataDIR, "ErieData08_15.csv", sep="/"), header=T)
+head(eriedata)
+    eriedata$Latitude[eriedata$Latitude>90 & !is.na(eriedata$Latitude)] <- 
+    mean(eriedata$Latitude[eriedata$Station=="WE8" & eriedata$Year=="2013" & eriedata$Latitude<90])
+    
+    eriedata$Longitude[eriedata$Longitude < -88  & !is.na(eriedata$Longitude)] <- -83.1940
+    
+    eriedata$stdate <- paste(eriedata$Station, eriedata$Date)
+    for (i in 1:dim(eriedata)[1]){
+        if(is.na(eriedata$Latitude[i])){
+            temp <- eriedata$Latitude[eriedata$stdate == eriedata$stdate[i]]
+            eriedata$Latitude[i] <- temp[1]
+#            print(temp)
+        }
+    }
+    for (i in 1:dim(eriedata)[1]){
+        if(is.na(eriedata$Longitude[i])){
+            temp <- eriedata$Longitude[eriedata$stdate == eriedata$stdate[i]]
+            eriedata$Longitude[i] <- temp[1]
+#            print(temp)
+        }
+    }
+         
+    eriedata$Latitude[eriedata$Latitude>48] <-
+        mean(eriedata$Latitude[eriedata$Station=="WE8" &
+                                   eriedata$Latitude < 48])
+    eriedata$Latitude[eriedata$Latitude < 41.1 &
+                          eriedata$Station == "WE2"] <- 41.7622
+    eriedata$Latitude[eriedata$Latitude<41.1 &
+                          eriedata$Station == "WE7"] <- 41.6749
+```
+
+
+## The `maps` Package
+
+The oldest package is the `maps` package (along with `maptools` and `mapproj`).  These packages allow us to make simple maps and display spatial data onto maps.
+
+```{r, fig.align="center"}
+maps::map()
+maps::map("usa")
+maps::map("state")
+maps::map("state", region=c("ohio","michigan"))
+maps::map("county")
+maps::map("county", "ohio")
+
+```
+We can plot a specific region by defining the ranges of latitude and longitude.  For example, the US portion of the Western Lake Erie:
+
+```{r}
+maps::map("usa", fill=TRUE, col="grey80", xlim=c(-83.5,-82.5),
+        ylim=c(41.4, 42.1))
+```
+
+Data points can be added to the map just like in a normal scatter plot (with `points`):
+```{r}
+maps::map("usa", fill=TRUE, col="grey80", xlim=c(-83.5,-82.5),
+        ylim=c(41.4, 42.1))
+points(x=eriedata$Longitude, y=eriedata$Latitude)
+```
+
+To show the study location on a world map, we can add the world map to a corner.  This operation requires add a map to an existing figure.  We need to first generate the map and save it to an object (instead of plotting).
+```
+maplocs <- maps::map(projection="sp_mercator", wrap=TRUE, lwd=0.1, ## very thin line
+                   col="grey", xlim=c(-180, 0),
+                   interior=FALSE, orientation=c(90, 180, 0), add=TRUE,
+                   plot=FALSE)  ## not plotting
+    xrange <- range(maplocs$x, na.rm=TRUE)
+    yrange <- range(maplocs$y, na.rm=TRUE)
+    aspect <- abs(diff(yrange))/abs(diff(xrange))  ## set the appropriate aspect ratio
+    # customised to 6.5 by 4.5 figure size (in inches)
+    par(fig=c(0.5, 0.99, 0.99 - 0.5*aspect*4.5/6.5, 0.99),  ### fig sets coordinates of a new figure region
+        mar=rep(0, 4), new=TRUE) ## fig is always used together with new=TRUE
+    plot.new() ## add a new plot
+    plot.window(xlim=c(1,2.00),
+                ylim=c(0.45,1))  ## set up coordinates for a new graphics window
+    maps::map(projection="sp_mercator", wrap=TRUE, lwd=0.25, fill=F,
+        col=gray(0.25), interior=TRUE, orientation=c(90, 180, 0),
+        add=TRUE)
+``` 
+We need to add a box to show the study area.
+```
+symbols(1.7, 0.8, circles = 1, inches=0.05, add=T)
+```
+
+```{r, echo=FALSE, fig.align="center"}
+maps::map("usa", fill=TRUE, col="grey80", xlim=c(-83.5,-82.5),
+        ylim=c(41.4, 42.1))
+points(x=eriedata$Longitude, y=eriedata$Latitude)
+    maplocs <- maps::map(projection="sp_mercator", wrap=TRUE, lwd=0.1, ## very thin line
+                   col="grey", xlim=c(-180, 0),
+                   interior=FALSE, orientation=c(90, 180, 0), add=TRUE,
+                   plot=FALSE)  ## not plotting
+    xrange <- range(maplocs$x, na.rm=TRUE)
+    yrange <- range(maplocs$y, na.rm=TRUE)
+    aspect <- abs(diff(yrange))/abs(diff(xrange))  ## set the appropriate aspect ratio
+    # customised to 6.5 by 4.5 figure size (in inches)
+    par(fig=c(0.5, 0.99, 0.99 - 0.5*aspect*4.5/6.5, 0.99),  ### fig sets coordinates of a new figure region
+        mar=rep(0, 4), new=TRUE) ## fig is always used together with new=TRUE
+    plot.new() ## add a new plot
+    plot.window(xlim=c(1,2.00),
+                ylim=c(0.45,1))  ## set up coordinates for a new graphics window
+    maps::map(projection="sp_mercator", wrap=TRUE, lwd=0.25, fill=F,
+        col=gray(0.25), interior=TRUE, orientation=c(90, 180, 0),
+        add=TRUE)
+symbols(1.7, 0.8, circles = 1, inches=0.05, add=T)
+```
+## In Conjunction with `ggplot2`
+This section provides some examples for creating a ggplot map, as well as a choropleth map, in which areas are patterned in proportion to a given variable values being displayed on the map, such as population, life expectancy, or density.
+
+We need R function `map_data()` [in ggplot2] to retrieve the map data. The function `geom_polygon()` [in ggplot2] to create the map
+
+We’ll use the `viridis` package to set the color palette of the choropleth map.
+
+Load required packages and set default theme:
+
+
+Load required packages and set default theme:
+```{r}
+packages(ggplot2)
+packages(dplyr)
+packages(viridis)
+theme_set(
+  theme_void()
+  )
+```
+The package `viridis` brings to R color scales created by Stéfan van der Walt and Nathaniel Smith for the Python `matplotlib` library.
+
+These color scales are designed to be:
+
+- Colorful, spanning as wide a palette as possible so as to make differences easy to see,
+- Perceptually uniform, meaning that values close to each other have similar-appearing colors and values far away from each other have more different-appearing colors, consistently across the range of values,
+- Robust to colorblindness, so that the above properties hold true for people with common forms of colorblindness, as well as in grey scale printing, and
+- Pretty, oh so pretty
+
+### Creating a Simple Map
+```{r}
+##Retrieve the world map data:
+
+world_map <- map_data("world")
+print (p <- ggplot(world_map, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill="lightgray", colour = "white"))
+
+states <- map_data("state")
+print(p <- ggplot(states, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill="lightgray", colour = "white"))
+
+print(p <- ggplot(states, aes(x = long, y = lat, group = group)) +
+  geom_polygon(aes(fill=region), colour = "white")+guides(fill=F))
+print(p + coord_map(projection="albers", lat0=39, lat=45))
+
+counties <- map_data("county")
+print(p <- ggplot(counties, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill="lightgray", colour = "white"))
+
+```
+### Map of specific region
+
+```{r}
+some.eu.countries <- c(
+  "Portugal", "Spain", "France", "Switzerland", "Germany",
+  "Austria", "Belgium", "UK", "Netherlands",
+  "Denmark", "Poland", "Italy", 
+  "Croatia", "Slovenia", "Hungary", "Slovakia",
+  "Czech republic"
+)
+# Retrievethe map data
+some.eu.maps <- map_data("world", region = some.eu.countries)
+
+# Compute the centroid as the mean longitude and lattitude
+# Used as label coordinate for country's names
+region.lab.data <- some.eu.maps %>%
+  group_by(region) %>%
+  summarise(long = mean(long), lat = mean(lat))
+
+```
+Visualize
+
+```{r}
+ggplot(some.eu.maps, aes(x = long, y = lat)) +
+  geom_polygon(aes( group = group, fill = region))+
+  geom_text(aes(label = region), data = region.lab.data,  size = 3, hjust = 0.5)+
+  scale_fill_viridis_d()+
+  theme_void()+
+  theme(legend.position = "none")
+```
+### Make a choropleth Map
+World map colored by life expectancy
+
+Here, we’ll create world map colored according to the value of life expectancy at birth in 2015. The data is retrieved from the WHO (World Health Organozation) data base using the WHO R package.
+
+Retrieve life expectancy data and prepare the data:
+```{r}
+# packages("~/Downloads/WHO_0.2.1.tar.gz", repos=NULL)
+# library("dplyr")
+# life.exp <- raster::getData("WHOSIS_000001")             # Retrieve the data
+# life.exp <- life.exp %>%
+#   filter(year == 2015 & sex == "Both sexes") %>%  # Keep data for 2015 and for both sex
+#   select(country, value) %>%                      # Select the two columns of interest
+#   rename(region = country, lifeExp = value) %>%   # Rename columns
+#   # Replace "United States of America" by USA in the region column
+#   mutate(
+#     region = ifelse(region == "United States of America", "USA", region)
+#     )                                     
+```
+Merge map and life expectancy data:
+
+```{r}
+# world_map <- map_data("world")
+# life.exp.map <- left_join(life.exp, world_map, by = "region")
+```
+Create the choropleth map. Note that, data are missing for some region in the map below:
+Use the function `geom_polygon()`:
+```{r}
+# ggplot(life.exp.map, aes(long, lat, group = group))+
+#   geom_polygon(aes(fill = lifeExp ), color = "white")+
+#   scale_fill_viridis_c(option = "C")
+
+```
+Or use the function geom_map():
+```{r}
+# ggplot(life.exp.map, aes(map_id = region, fill = lifeExp))+
+#   geom_map(map = life.exp.map,  color = "white")+
+#   expand_limits(x = life.exp.map$long, y = life.exp.map$lat)+
+#   scale_fill_viridis_c(option = "C")
+```
+
+### US map colored by violent crime rates
+Demo data set: USArrests (Violent Crime Rates by US State, in 1973).
+
+```{r}
+# Prepare the USArrests data
+arrests <- USArrests 
+arrests$region <- tolower(rownames(USArrests))
+head(arrests)
+##            Murder Assault UrbanPop Rape     region
+## Alabama      13.2     236       58 21.2    alabama
+## Alaska       10.0     263       48 44.5     alaska
+## Arizona       8.1     294       80 31.0    arizona
+## Arkansas      8.8     190       50 19.5   arkansas
+## California    9.0     276       91 40.6 california
+## Colorado      7.9     204       78 38.7   colorado
+# Retrieve the states map data and merge with crime data
+states_map <- map_data("state")
+arrests_map <- left_join(states_map, arrests, by = "region")
+
+# Create the map
+ggplot(arrests_map, aes(long, lat, group = group))+
+  geom_polygon(aes(fill = Assault), color = "white")+
+  scale_fill_viridis_c(option = "D")
+```
+
+  
+
+## The `ggmap` package
+
+(Note: Google changed its API requirements in July 2018, and `ggmap` users are now required to provide an API key and enable billing.  The billing enablement especially is a bit of a downer, although you can use the free tier without incurring charges. As a result of the API change, `ggmap` is out of date. I keep the following code here just in case the issues is resolved in a later update.)
+
+The old map tools in R are very difficult to use and the databases are also old.  Fortunately, there are a number of new R libraries being created to make spatial data visualization a more enjoyable endeavor.  Of these new options, one useful package is `ggmap`.
+
+The fastest way to get going is with the `qmap` class, which stands for "quick map plot." Play around with the different types of parameter calls to render various plot types.
+
+Some examples to start:
+```{r, message=FALSE, fig.align="center"}
+# packages(ggmap)
+# qmap(location = "toledo, oh")
+# qmap(location = "toledo, oh", zoom = 14)
+# qmap(location="the university of toledo, oh", zoom=12)
+# ## check ut lat/lon
+# qmap(location=c(-83.6126, 41.6622), zoom=14)
+# qmap(location=c(-83.6126, 41.66), zoom=15)
+# 
+# qmap(location = "lake erie", zoom = 7)
+# qmap(location = "lake erie", zoom = 7, maptype="toner")
+# qmap(location = "lake erie", zoom = 7, maptype="watercolor")
+# qmap(location = "lake erie", zoom = 7, maptype="s")
+# 
+# qmap(location=c(-83.10, 41.75), zoom=10)
+```
+
+
+
+Let's now use the HABs monitoring data from NOAA-GLERL.
+
+```{r, message=F, fig.align="center"}
+# wle <- get_map(location=c(-83.10, 41.75), zoom=10)
+# p <- ggmap(wle)
+# ##pdf(file=paste(plotDIR, "HABsamples3.pdf", sep="/"), height=5, width=5)
+# p + geom_point(data=eriedata, aes(x=Longitude, y=Latitude), col="red")
+# ##dev.off()
+```
+
+Presenting Results
+Using `ggmap` we can present results over a spatial scale graphically.  For example, we may want to present the mean TP concentration spatially.
+
+```{r, fig.align="center"}
+# moltern.erie <- reshape2::melt(eriedata[,c("Station","Latitude","Longitude","TP")], id.vars = c("Station"), measured.vars=c("Latitude","Longitude","TP"))
+# erieTP <- dcast(moltern.erie, Station~variable, fun=mean, na.rm=T)
+# head(erieTP)
+# 
+# overlay <- stat_density2d(aes(x=Longitude, y=Latitude, fill=..level.., alpha=..level..), 
+#                     size=2, bins=8, data=erieTP, geom="polygon")
+# ##pdf(file=paste(plotDIR, "ErieTPwc.pdf", sep="/"), height=4, width=4)
+# p + overlay
+```

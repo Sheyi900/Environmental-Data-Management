@@ -1,0 +1,509 @@
+
+
+# Week 5
+This is a RMarkdown document on R data objects for the week of
+September 24, 2019.
+
+
+## Subscripting
+
+For objects with more than one elements, we use subscripting to access some elements.
+
+### Numerical Subscripts
+
+We use numerical subscripts to access the elements of a vector, 
+array, or list.  The first element has subscript 1, the second 
+has 2, and so on.  Subscript 0 is ignored (without warning).  
+Negative subscripts indicate the ones to be left off -- 
+extract all but the ones indicated with a negative sign.  
+However, numerical subscripts must be all positive (including 0),
+or all negative (including 0).  Mixing negative and positive 
+subscripts will result in error.
+
+We can use a sequence of integers expressed by `c()`, `seq()`,
+and the colon operator.
+
+### Character Subscripts
+
+When an object is named, a character string or a vector of 
+character string can be as subscript to extract the named 
+element(s).  Negative character subscripts are not permitted.  
+To exclude elements based on their names we use function `grep`.  
+A call to any function that returns a character string (vector)
+can be used as a subscript.
+
+### Logical Subscripts
+
+When using logical values (`TURE`, `FALSE`) to selectively access
+elements of an object, we use a logical object with the same size 
+of the object (or part of the object) that is being subscripted.
+Elements corresponding to `TRUE` values in the logical object 
+will be included, and elements corresponding to `FALSE` values 
+will be excluded.
+
+Logical subscripts are probably the most useful way to perform 
+complicated tasks.  To understand the use of logical subscripts, 
+we should take a look at the logic objects.  For example, suppose
+we are interested in the subset of large values (> 10) of the following
+object:
+
+```{r}
+ nums <- c(12, 9, 8, 14, 7, 16, 3, 2, 9)
+```
+A simple logical expression can be used to compare each of the elements
+to the number 10:
+
+```{r}
+nums > 10
+```
+The logical operator `>` is vectorised -- applying a logical operator
+to a vector will result in a vector of logical values.  
+
+```{r}
+length(nums)
+length(nums > 10)
+```
+
+When using the resulting logical vector for subscripting, it will 
+extract the elements for which the logical vector is true:
+
+```{r}
+nums[nums > 10]
+```
+Sometimes, we may want to known the indices of these elements.  
+The function `which` accepts a logic vector and returns a 
+vector containing the subscripts of the elements for which 
+the logical vector was true:
+
+```{r}
+which(nums > 10)
+```
+This operation is equivelent to:
+
+```{r}
+seq(along=nums)[nums > 10]
+```
+ or
+ 
+ ```{r}
+ (1:length(nums))[nums>10]
+ ```
+ 
+Logical subscripts allow for modification of elements 
+that meet a particular condition by using an appropriately 
+subscripted object on the left-hand side of an assignment 
+statement.  Suppose that values larger than 10 is impossible,
+any observation with a value of above 10 should be removes 
+(or replaced by `NA`), we can use the logical subscripts:
+
+```{r}
+nums[nums > 10] <- NA
+nums
+```
+
+### Subscripting Matrices
+When an object has more than 1 dimensions, subscripts can 
+be provided for each dimension separated by a comma (or commas).
+For a multidimensional object, empty subscript on one dimension
+means that all elements of that dimension will be extracted.
+For example, while `x[3,4]` extracts the element in 3rd 
+row and 4th column, `x[3,]` extracts the entire 3rd row.
+
+```{r}
+x <- matrix(1:12, 3, 4)
+x
+x[3,4]
+x[3,]
+x[,c(4, 1)]
+```
+When a matrix is subscripted with a single subscript, the matrix
+is treated (silently) as a vector composed of all the columns of 
+the matrix.  This may be useful in certain situations, but can be
+confusing.
+
+```{r}
+x[10]<-NA
+
+```
+
+Here is an example where a single script is convenient. In missing
+value problems, we often want to impute missing values, either missing
+at random or values are known to be less than certain thrshold 
+(e.g., method reporting limit).  Numerically, these missing
+values are treated as unknown quantities to be estimated.
+Almost all numerical algarithms require a set of starting (or
+initial) values.  I wrote a function to supply such initial values:
+
+```{r}
+ini <- function (x, inival){
+  nas <- is.na(x)
+  x[nas] <- inival
+  x[!nas] <- NA
+  return(x)
+}
+```
+This function can take both vectors and matrices as `x`.
+
+```{r}
+x[10] <- NA
+ini(x, 0)
+
+y <- 1:12
+y[10] <- NA
+
+ini(y, 0.5)
+```
+
+Sorting a matrix by a particular row or column is most conveniently 
+done through subscripting.  Let's use the data `stack.x` as an example.  
+The object includes operational data of a plant that makes nitric acid 
+by oxidation of ammonia. It is a matrix of three columns 
+(`"Air.Flow","Water.Temp","Acid.Conc"`).  We can sort the matrix by
+the column `Air.Flow`:
+
+```{r}
+stack.x.sorted <- stack.x[order(stack.x[,"Air.Flow"]), ]
+head(stack.x.sorted)
+```
+
+A note on `ordered`:
+
+```{r}
+temp <- rnorm(10)
+temp
+order(temp)
+```
+
+Now we have sorted the data frame by `Air.Flow`.  What if you 
+want to sort it first by `Air.Flow`, then by `Water.Temp` and 
+then by `Acid.Conc.`?
+
+```{r}
+stack.x.sorted <- 
+  stack.x[order(stack.x[,1], stack.x[,2], stack.x[,3]), ]
+```
+
+Let's look at a data frame.  The famous iris data was used by Fisher 
+and Anderson to illustrate ANOVA.  The data set consists of measurements
+in centimeters of the variables sepal length and width and petal length
+and width for 50 flowers from each of three species of iris.  The 
+species are *iris setosa, versicolor* and *virginica*.  We can sort the
+data frame by columns, and use the function `do.call` to pass the 
+column names:
+
+```{r}
+sortframe <- function(df, ...) df[do.call(order, list(...)),]
+
+#with(iris, 
+#sortframe(iris, Sepal.Width, Sepal.Length, Petal.Width, Petal.Length))
+```
+
+The use of `order` results in ascending order.  We may want to sort in 
+descending order. The order can be reversed by using `rev()`:
+
+```{r}
+stack.x.sorted <- stack.x[rev(order(stack.x[,"Air.Flow"])), ]
+head(stack.x.sorted)
+```
+
+We can rewrite the function `sortframe` to sort in descending order:
+```{r}
+sortframeD <- function(df, ...) df[rev(do.call(order, list(...))), ]
+iris.sorted <- with(iris, 
+sortframeD(iris, Sepal.Width, Sepal.Length, Petal.Width, Petal.Length))
+```
+
+ `drop=FALSE`
+
+When extracting one row or one column from a matrix, the resulting 
+object becomes a vector (reduced dimension by 1).  In some cases
+we want to maintain the original data structure (keep a matrix a matrix).  
+```{r}
+stack.x[1,]
+stack.x[1,,drop=FALSE]
+```
+When applied to a data frame, extracting a column may result in losing the name. Using `drop=FALSE` allows to keep the name:
+```
+iris[,2,drop=FALSE]
+```
+
+Using subscripts, it is easy to selectively access any combination of rows and/or columns that you need.  For example, we can select all the columns of the matrix `x` for which the first column is less larger than 1:
+```{r}
+x[,1] > 1
+x[x[,1]>1, ]
+```
+
+In a data frame, we can extract rows representing a specific site, date, or species:
+```{r}
+setosa <- iris[iris$Species == "setosa", 1:4]
+```
+
+## Two Useful Functions for Matrix
+
+The functions `row` and `col` can be used to help subscripting
+matrices.  By themselves, the functions are not very useful.  
+They are very helpful in handling squared matrices when carrying
+out matrix operations.
+
+```{r}
+col(x)
+row(x)
+```
+For a squared matrix:
+```{r}
+z <- matrix(1:16, 4, 4)
+rw <- row(z)
+cl <- col(z)
+
+offd <- rw != cl
+```
+We now have off-diagnal and diagnal elements:
+```{r}
+z[offd]
+z[!offd]
+```
+
+## List
+
+List is the most general way to store  a collection of objects in R.  There is no limitation on the mode and size of the objects.  An unstated rule of sub-scripting is that the returned object is of the same mode as the object being sub-scripted.  It is natural for vectors and matrix. But for a list, each part of the list can be of different mode.  For example, 
+```{r}
+list.example <- list (a = c('fred','sam','harry'), b=rnorm(10))
+mode(list.example)
+list.example[2]
+
+mode(list.example[2])
+```
+Although the second element of the list is numeric, R 
+took it as `list`:
+
+```{r}
+mean(list.example[2])
+```
+That is, the result is a list of one element.
+
+R provides two ways to resolve this issue.  First, if the elements of a list are named, the actual elements can be accessed by separating the name of the list and the name of the element with a dollar sign (\$):
+```{r}
+mean(list.example$b)
+```
+When using the dollar sign is inappropriate (e.g., unnamed elements), R allows us to use the double bracket subscript operator.  The double bracket operator will extract the actual list element:
+```{r}
+mean(list.example[[2]])
+mean(list.example[["b"]])
+```
+When using a list, single bracket will return a list, double bracket will return an object with the mode of the extracted element.
+
+```{r}
+list.example[1]
+list.example[[1]]
+```
+It is fine to use `list.example[1:2]`, or `list.example["a","b"]`, but `list.example[[1:2]]` will return something unexpected.
+
+## Aggregation
+R has many functions for data aggregation.  For simple tabulation and cross-tabulation, the function `table` is adequate.
+
+For more complext tasks, there are two groups of functions. For array data (vectors, matrices, arrays), we can use `apply, sweep, mapply, sapply`, and `lapply`.  For data frame, we use `aggregate`, `by` (which is a wrapper for `tapply`).
+
+### Tabulation
+
+When the function `table` is used on a vector, it returns a named vector of counts of unique values in the vector:
+```{r}
+pets <- c('gold fish', 'dog','cat', 'duck', 'gold fish', 'chicken','duck','cat','dog')
+tbl <- table(pets)
+tbl
+```
+The output can be converted into a data frame:
+```{r}
+as.data.frame(tbl)
+```
+
+When `table` is applied to multiple vectors, it will return a cross-tabulation. For example, a two vector situation:
+```{r}
+hiinc <- state.x77[,'Income'] > median(state.x77[,'Income'])
+stateinc <- table(state.region, hiinc)
+stateinc
+as.data.frame(stateinc)
+```
+
+When we pass a data frame to `table`, it treats each column as a separate variable:
+```{r}
+x <- data.frame(a=c(1,2,2,1,2,2,1),
+                b=c(1,2,2,1,1,2,1),
+                c=c(1,1,2,1,2,2,1))
+x
+table(x)
+as.data.frame(table(x))
+```
+The data frame output is especially useful in analyzing data with multiple factors.  The data frame output summarizes the frequency of each unique combination.
+
+With a two way cross-tabulation, we can also add margins of summary statistics.  Let's use the data `infert`.
+```{r}
+temp <- table(infert$education, infert$parity)
+temp
+```
+To add a row of margins:
+```{r}
+temp1 <- addmargins(temp, 1)
+```
+The default summary statistics is `sum`.  To change the statistics:
+```{r}
+temp2 <- addmargins(temp, 1, FUN=mean)
+```
+To add a column of margins:
+```{r}
+temp3 <- addmargins(temp, 2)
+```
+To add both column and row of margins:
+```{r}
+temp4 <- addmargins(temp, c(1,2))
+```
+
+Some times, we are interested in having a table of proportions instead of counts.  We can use the function `sweep`or `prop.table`, which accepts a table and a margin:
+```{r}
+prop.table(temp,2)
+```
+
+Similar to `table`, `xtabs` also produces cross-tabulations but uses formula:
+```{r}
+xtabs(~state.region+ hiinc)
+```
+If a variable is given on the left-hand side of the tilde ($\sim$), it is interpreted as a vector of counts corresponding to the values of the variables on the right-hand side, making it very convenient to convert tabulated data into a table:
+```{r}
+x
+dfx <- as.data.frame(table(x))
+xtabs(Freq~a+b+c, data=dfx)
+```
+
+### General Considerations of Aggregation
+
+- How are the groups that divide the data are defined? (list, column/row of a matrix, a or more variable of a data frame)
+- Waht is the nature of the data to be operated on?
+- What is the desired end result?
+
+*Groups defined by a list element.* We use `sapply` or `lapply`.  `lapply` always retuns a list, `sapply` may simplify its output into vectors or matrix when appropriate.
+
+*Groups defined by a row or column of a matrix.* `apply` should be used.`apply` returns a vector or matrix (array).
+
+*Groups defined by one or more grouping variables.* Which function to use depends on what outcome do you want.
+
+If we are interested in calculating scalar statistics (e.g., mean, variance), we often use `aggregate` because it reurns a data frame.  If the result is a vector, `tapply` is often used.  
+
+sapply`
+We use the data `ChickWeight` as an example.
+```{r}
+?ChickWeight
+names(ChickWeight)
+sapply(ChickWeight, class)
+```
+Here, we have a data frame (a list) of 4 elements.  Using `sapply`, we apply the same function (`class`) to each of the element.  
+
+ `apply`
+`The function `apply` is used for aggregating a matrix by row or by column.  It can be used more generally for an array (more than two dimensions).  
+
+```{r}
+apply(state.x77, 2, sum)
+```
+
+When the function returns more than one scalar value, the output will be a matrix:
+```{r}
+apply(state.x77, 2, summary)
+```
+
+We can provide functions for calculating specific statistics:
+```{r}
+sumfun<- function(x) 
+  c(n=sum(!is.na(x)), mean=mean(x, na.rm=T), sd=sd(x, na.rm=T))
+apply(state.x77, 2, sumfun)
+```
+The function we wrote takes a vector (`x`) as input.  If a function takes additional input variables (e.g., the function `mean` has additional arguments such as `na.rm`), these additional inputs are entered after the function argument.
+```{r}
+apply(state.x77, 2, mean, na.rm=T, trim=0.25)
+```
+
+Additional uses:
+```{r}
+maxes <- apply(state.x77, 2, max)
+#sweep(state.x77, 2, maxes, "/")
+```
+
+Suppose that we are interested in calculating the mean for each variable in `state.x77`, using only those values which are larger than the median for that variable.  
+
+```{r}
+meds <- apply(state.x77, 2, median)
+meanmed <- function(x, med) return(mean(x[x>med]))
+meanmed(state.x77[,2], meds[2])
+```
+When using `apply`, we apply a function to multiple variables.  If there are additional arguments (e.g., `na.rm=T` in `mean`), the additional arguments are the same to all variables.  In this function, we also apply one function to several variables, but the additional argument (`meds`) has different values for different variables.  In situations like this, we use `mapply`.  Because `mapply` is written for list, the matrix `state.x77` must be converted into a data frame:
+```{r}
+mapply(meanmed, as.data.frame(state.x77), meds)
+```
+
+### Mapping a Function Based on Groups
+
+Frequently, groups are defined by mulitple variables (e.g., see `ChickWeight` and `iris`).  If we are interested in calculating a scalar summary statistics, we can use `aggregate`
+```{r}
+aggregate(iris[-5], iris[5], mean)
+#aggregate(ChickWeight$weight, ChickWeight[c('Time','Diet')], mean)
+```
+(Read `?aggregate` and find out why `aggregate(iris[,-5], iris[,5], mean)` won't work.)
+
+(Note the difference in output format.)
+
+When groups are defined by one vector, we use `tapply`.
+```{r}
+sepalL <- tapply(iris$Sepal.Length, iris$Species, mean)
+sepalL.range <- tapply(iris$Sepal.Length, iris$Species,range)
+```
+The object `sepalL.range` is a list of three elements.  It is often convenient to convert it to a data frame:
+```{r}
+sepalL.range<-data.frame(group=dimnames(sepalL.range)[[1]], 
+                         matrix(unlist(sepalL.range), ncol=2, byrow=T))
+```
+
+We can also use `tapply` with more than one grouping varaibles, just as `aggregate`.
+```{r}
+iris2 <- data.frame(value = unlist(iris[,-5]), 
+                    Species = rep(iris$Species, dim(iris)[2] -1),
+                    Variable = rep(names(iris)[-5], each=dim(iris)[1]))
+
+iris.range <- tapply(iris2$value, iris2[c('Species','Variable')], range)
+iris.range
+iris.range[['setosa', 'Petal.Length']]
+```
+To make it useful, we convert it to a data frame:
+```{r}
+iris.range.df <- data.frame(expand.grid(dimnames(iris.range)),
+                            matrix(unlist(iris.range), byrow=T, ncol=2))
+```
+
+In many cases, we want to subtract group means from the data.  For example, the data set `CO2` consists of results from an experiment for studying cold tolerance of two types of grass under two levels of temperature treatment.  The objective is to learn about CO$_2$ uptake by the plants at various ambient concentrations.  It is a nonlinear regression problem.  There were 12 plants in the experiment. The plot below shows the response of each plant.
+
+```{r}
+coplot(uptake ~ conc | Plant, data = CO2, show.given = F, type = "b")
+```
+
+We are interested in the effect of temperature treatment and grass type on the CO$_2$ uptake process.  In a regression problem, it is often necessary to ``center'' the data, that is, subtracting the mean or median of each treatment-type combination from the data.  We can calculate the means using `tapply`:
+
+```{r}
+mns <- tapply(CO2$uptake, CO2[c('Type', 'Treatment')], mean)
+mns
+```
+Now the questions is how do we subtract these means from their respective uptake data.  When using `tapply`, we provide a function.  If calling `tapply` without a function, a vector of indeces will be returned:
+
+```{r}
+inds <- tapply(CO2$uptake, CO2[c('Type', 'Treatment')])
+inds
+```
+These indices can be used as a subscript:
+```{r}
+mns[inds]
+```
+which returns the calculated means for each type-treatment combination.  Now the centering is as simple as:
+
+```{r}
+adj.uptake <- CO2$uptake - mns[inds]
+adj.uptake
+```
+
+```{r}
+coplot(adj.uptake ~ conc | Plant, data = CO2, show.given = F, type = "b")
+```

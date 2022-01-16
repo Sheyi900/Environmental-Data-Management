@@ -1,0 +1,497 @@
+# Week 8
+
+
+
+
+## Factors
+Factors are categorical variables, taking on a limited number of unique values.  In statistical modeling, factor variables are used in many ways.  Properly handle factor variables is an important aspect of data management.
+
+In R, a factor variable is stored as a vector of integers, each with a corresponding character value to use when displayed.  To create a factor, we use `factor`, which requires a vector.  A factor variable has two attributes: "levels" and "nlevels".  The functions `levels` and `nlevels` returns these two attributes.  Levels of a factor are names of the limited number of unique character values.  When creating a factor variable using function `factor`, we can specify the levels using `levels=` argument to give a vector of all possible values of the variable in the order you want.  If the order of elvels are important, we should use an ordered factor by specifying `ordered=T` as an argument when creating a factor using the `factor` function.
+
+```{r}
+data <- c(1,2,2,3,1,2,3,3,1,2,3,3,1)
+fdata <- factor(data)
+fdata
+
+```
+To change the names of level:
+```{r}
+rdata <- factor(data, labels = c("I","II","III"))
+rdata
+```
+or 
+```{r}
+levels(fdata) <- c("a","b","c")
+fdata
+```
+
+A factor variable is the most efficient means for storing character variables.  Each unique character value is stored only once and data itself is stored as a vector of integers.  As a result, when reading data using `read.table`, R will automatically convert character variables into factors.  You can turn this feature off by using either `as.is=TRUE` or `stringsAsFactors=FALSE`.  
+
+By default, R converts a character vector into a factor, and presenting in the natural alphabetic order.  For example,
+
+```{r}
+mons <- c("March","April","January","November","January","September","October","September",
+          "August","January","February","July","June", "May", "March","April","January",
+          "November","January","September","October","September", "August","January",
+          "February","July","June", "May","December","December")
+table(mons)
+mons <- factor(mons)
+mons
+```
+
+The ordering is alphabetic.  Months have an ordering.  To make the correct order, we should use an ordered factor:
+```{r}
+mons <- factor(mons, levels=c("January","February","March","April","May","June",
+                              "July","August","September","October","November","December"), 
+               ordered=T)
+mons
+mons[1] < mons[2]
+```
+With an ordered factor, the presentation uses the specified order:
+```{r}
+table(mons)
+```
+
+Months have a natural order.  Some times the order of a factor variable should be determined by some properties of the data.  For example, the data set `InsectSpray` in R records the number of insects killed in agriculture field experiments with 6 insecticides, labeled alphabetically.  
+```{r}
+packages(lattice)
+levels(InsectSprays$spray)
+dotplot(spray ~ count, data=InsectSprays)
+boxplot(count ~ spray, data=InsectSprays,  xlab = "Type of spray", ylab = "Insect count",
+        main = "InsectSprays data", varwidth = TRUE, col = "lightgray")
+```
+The label has no meaning.  But ordering the type sprays by the mean number of counts would help visualizing the relative effectiveness of these sprays.  To reorder a factor variable, we can use the function `reorder`:
+```{r}
+InsectSprays$spray <- reorder(InsectSprays$spray, InsectSprays$count, mean)
+levels(InsectSprays$spray)
+```
+The function takes three arguments: the factor variable to be reordered, a vector of values that the reordering is based, and a function to operate on those values for each factor level.
+
+```{r}
+dotplot(spray ~ count, data=InsectSprays)
+boxplot(count ~ spray, data=InsectSprays,  xlab = "Type of spray", ylab = "Insect count",
+        main = "InsectSprays data", varwidth = TRUE, col = "lightgray")
+```
+
+In many situations, we are interested in setting one particular level of a factor variable as the reference level (e.g., the control).  This can be done by using the function `relevel`.
+
+```{r} 
+InsectSprays$spray <- relevel(InsectSprays$spray, "D")
+boxplot(count ~ spray, data=InsectSprays,  
+        xlab = "Type of spray", 
+        ylab = "Insect count",
+        main = "InsectSprays data", 
+        varwidth = TRUE, col = "lightgray")
+```
+
+We just reset the spray type "D" as the reference level.  It is now the first level.
+
+### Numeric Factors
+It is useful in some cases to convert a numeric variable to a factor.  For example, when site names are numeric numbers, we often convert them to factors.  We also convert year into factors when year is used as a variable to divide data into groups.  Once a numeric variable is converted into a factor, no numeric operation can be performed.
+```{r}
+yr <- c(1980, 1980, 1967, 1966, 1967, 2001, 2001, 1966)
+yr <- factor(yr, ordered=T)
+```
+The variable `yr` is now an ordered factor variable.  No calculation can be performed:
+```{r}
+yr[7]-yr[1]
+```
+To return a numeric factor to its original numeric values, we cannot simply use the function `as.numeric`:
+```{r}
+as.numeric(yr)
+```
+It returns the internal integer values of the variable.  We need to first convert an ordered factor to a simple character vector before applying the `as.numeric` function:
+```{r}
+yr <- as.numeric(as.character(yr))
+yr
+yr[7] - yr[1]
+``` 
+This operation can be very useful in handling inadvertent non-numeric characters in a numeric variable.  When reading the data file using `read.table` or `read.csv`, R takes the variable as factor.  
+```{r}
+temp <- factor(c(1,2,3, "n"))
+as.numeric(as.character(temp))
+```
+The operation converts the errant characters into `NA`.
+
+### Manipulating Factors
+When a factor is created, all of its levels are stored along with the factor, and if subsets of the factor are extracted, they will retain all of the original levels.  This can create problems when constructing model matrices and may or may not be useful when displaying the data.  Let's see an example:
+```{r}
+letrs <- sample(letters, size = 100, replace = T)
+ ## sampling 100 letters with replacement
+letrs <- factor(letrs)
+tb1<- table(letrs[1:10])
+tb1
+```
+The levels (26 letters) are retained in the subset, even though only `r sum(tb1>0)` of the 26 levels were represented in the subset.  To drop the levels not included in the subset, we can either use `drop=TRUE` in the sub scripting operator:
+```{r}
+letrs <- sample(letters, size = 100, replace = T)
+letrs <- factor(letrs)
+letrs.subset <- letrs[1:10, drop=TRUE]
+table(letrs.subset)
+```
+or use the `factor` function again to create a new factor variable:
+```{r}
+letrs.subset2 <- factor(letrs[1:10])
+table(letrs.subset2)
+```
+By default, when a factor variable is created using the function `factor`, missing values (`NA`) are excluded from factor levels.  To create a factor that includes missing values from a numeric variable, use `exclude=NULL`.
+
+When combining factor variables with different levels, we often encounter errors.
+```{r}
+fact1 <- factor(sample(letters, size=10, replace=T))
+fact2 <- factor(sample(letters, size=10, replace=T))
+fact1
+fact2
+c(fact1, fact2)
+```
+The outcome is not what we wanted because level 1 in `fact1` is `r levels(fact1)[1]` and level 1 in `fact2` is `r levels(fact2)[1]`.  As a result, the `1` in the first 10 elements is not the same as the `1` in the second 10 elements.  In other words, the combined factors have more then the maximum level of the two factors.  To combine two factor variables, we need to first return each of them into character vectors, combine them and convert the combined into factor:
+```{r}
+fact1 <- levels(fact1)[fact1]
+fact2 <- levels(fact2)[fact2]
+
+fact12 <- factor(c(fact1, fact2))
+```
+
+### Creating Factors from Continuous Variables
+The function `cut` is used to convert a numeric variable into a factor.  In the function, we use the argument `breaks =` to describe how ranges of numbers will be converted to factor values.  When a number is provided (e.g., `breaks=10`), the resulting factor will be created by dividing the range of the variable into that number of equal-length intervals; if a vector is provided, the values of that vector is used to determine the break points.  
+
+Let's consider the data set `women` (reporting average heights and weights for American women).
+```{r}
+wfact <- cut(women$weight, 4)
+wfact
+table(wfact)
+```
+We may want to have breakpoints as some round values.  The function `pretty` performs this function:
+```
+pretty(women$weight, 3)
+```
+It chooses round numbers as 1, 2, or 5 times a power of 10.  In this case, the round number is 5 (or 5 times $10^0$).  We can specify the desired number of intervals (here 3).  The function, however, finds the round number that will give the number of intervals closest to the number we want.
+```{r}
+wfact <- cut(women$weight, pretty(women$weight, 3))
+wfact
+table(wfact)
+```
+The `labels=` argument to the function `cut` allows us to specify the levels of the factors:
+```{r}
+wfact <- cut(women$weight, 3, labels=c("Low","Medium","High"))
+wfact
+table(wfact)
+```
+To produce factors based on percentiles of the data, we can use the `quantile` function to generate the breakpoints:
+```{r}
+wfact <- cut(women$weight, quantile(women$weight, (0:4)/4))
+wfact
+table(wfact)
+```
+
+### Factors Based on Dates and Times
+We often want to create factors based on one of components of a date object (e.g., months, week days).  We can extract that component from the date object and convert it into factor.  
+```{r}
+everyday <- seq(from =as.Date("2014-1-1"), 
+                to=as.Date("2014-12-31"), 
+                by="day")
+## extracting month
+mnth <- format(everyday, "%b")
+months <- factor(mnth, ordered=T)
+## not quite what we wanted
+months <- factor(mnth, levels=month.abb, ordered=T)
+```
+The `cut` function understands time units of `month, days, weeks`, and `years` through the `breaks=` argument.
+```{r}
+wks <- cut(everyday, breaks="week")
+head(wks)
+mnths1 <- cut(everyday, breaks="month")
+mnths2 <- cut(everyday, breaks="month", labels=month.abb)
+```
+The `cut` function also takes multiples of units.  For example, a quarter has three months:
+```{r}
+qtrs <- cut(everyday, "3 months")
+head(qtrs)
+```
+
+### Interactions
+In statistical modeling, we often want to study the effects of two or more factor variables and their interactions.  When studying the interaction effect of two factor variables, we need to create a combination factor.  We can use the function `interaction`.  Consider the data frame `CO2` on CO$_2$ uptake in grass plants.  The two factor variables are `Type` and `Plant`.  
+```{r}
+data(CO2)
+nlevels(CO2$Plant)
+nlevels(CO2$Type)
+newfact <- interaction(CO2$Type, CO2$Plant)
+nlevels(newfact)
+table(newfact)
+```
+To remove combinations that never occur, we use `drop=TRUE`:
+```{r}
+newfact <- interaction(CO2$Type, CO2$Plant, drop=TRUE)
+nlevels(newfact)
+table(newfact)
+
+newfact <- interaction(CO2$Type, CO2$Plant)
+```
+
+## Character Manipulation
+
+R is also good at manipulating characters.  Because of R's factorized operations, R's character manipulating functions can be very powerful.
+
+Here are some useful functions for characters.
+
+To count the number characters in each element of a character vector, we use `nchar`.
+```{r}
+state.name
+nchar(state.name)
+```
+
+To display character strings, we use `cat` or `print`
+```{r}
+x <- 7
+y <- 10
+cat("x should be greater than y, but x = ", x, "and y = ",y, "\n")
+```
+
+The `fill=` argument limits the number of character for each line:
+```{r}
+cat("Long strings can", "be displayed over",
+    "several lines using","the fill = argument",
+    fill=40)
+```
+
+The `cat` function also accepts `file=` argument so that we can save the text into a file. 
+
+Also we can use `cat` to concatenate character strings, the function `paste` is a more flexible one.  When using `paste`, we can pass a number of objects and those that are not characters will be evaluated and the results converted into characters.
+
+```{r}
+paste("one", 1, "two", 2, "three", 3)
+paste("one", 1, "two", 2, "three", 3, sep="-")
+```
+When we have a vector of characters and we want to combine the elements into one character string, we use argument `collapse=`:
+```{r}
+paste(c("one", "two", "three"), collapse="-")
+```
+When multiple arguments are passed to `paste`, it will vectorize the operation, recycling shorter elements when necessary. This makes generating variable names easy:
+```{r}
+paste("X", 1:4, sep="")
+paste(c("X","Y"), 1:5, sep="")
+```
+The `sep=` argument controls what is placed between each set of values that are combined, and the `collapse=` argument can be used to specify a value to use when joining those individual values to create a single string:
+```{r}
+paste(c("X","Y"), 1:5, sep="_", collapse="|")
+paste(c("X", "Y"), 1:5, "^", c("A","B"),  sep="_", collapse="|")
+```
+Without the `collapse=` argument, the individual pasted pieces are returned separately.
+```{r}
+st1 <- paste(c("X","Y"), 1:5, sep="_", collapse="|")
+st2 <- paste(c("X","Y"), 1:5, sep="_")
+length(st1)
+length(st2)
+```
+
+To work with parts of character values, we use the function `substring` to extract a subset of the character string.  The function takes `first=` and `last=` as arguments, specifying the first and last characters.
+
+```{r}
+substring(state.name, 2, 7)
+```
+
+The function returns as many as it finds with no padding provided. 
+
+We can also vectorizing the `first=` and `last=` arguments:
+```{r}
+mystring <- "dog cat duck"
+substring(mystring, c(1,5,9), c(3,7,12))
+```
+For finding locations of particular characters within a character string, the string first needs to be converted to a character vector containing individual characters.  This can be done by passing a vector consisting of all the characters to be processed as both the `first=` and `last=` arguments, and then applying `which` to the result:
+```{r}
+state <- "Mississippi"
+slength <- nchar(state)
+lstr <- substring(state, 1:slength, 1:slength)
+lstr
+which(lstr == "s")
+```
+We can also change part of a character string by using `substring`.
+```
+mystring <- "dog cat duck"
+substring(mystring, 5, 7) <- "feline"
+mystring
+mystring <- "dog cat duck"
+substring(mystring, 5, 7) <- "d"
+mystring
+```
+
+### Regular Expressions in R
+
+When working with a data frame with many variables we may want to extract columns with names matching a specific pattern.  For example, land use data from the National Land use Land Cover Database used in the EUSE data are named `PNLCD` plus a number (representing the land use category).  To specify all land use land cover variables, we can use something similar to a wildcard notation `PNLCD*`. 
+```{r}
+euse.ag <- read.csv(paste(dataDIR, "City_AG.csv", sep="/"), header=T)
+euse.ag
+```
+For this simple example, we can use the following lines to identify columns with names start with `PNLCD`:
+```{r}
+substring(names(euse.ag), 1, 5)=="PNLCD"
+## hence, the following works:
+euse.ag[, substring(names(euse.ag), 1, 5)=="PNLCD"]
+```
+In a more complicated data (e.g., community survey data with columns of species names), the function `substring` can be too restrictive.  In computer programming, matching text to a specific pattern is carried out by using regular expressions.
+
+Regular expressions are a method of expressing patterns in character values which can be used to extract parts of strings or to modify those strings in some way.  You are probably familiar with wildcard notations such as `*.txt` to find all text files in a file manager.  You can think of regular expressions as wildcards on steroids. You either love the stuff immediately or you need to use it for some reason.  Either way, it is a geeky subject. But regular expression is often useful when we need to search text (e.g., variable names) that matches certain patterns.  
+
+Regular expressions are composed of three components: literal characters (matched by a single character string), character classes (matched by any of a number of characters), and modifiers (operate on the first two components).  
+
+Literal characters are the text or part of the text we want to find.  As many punctuation marks are used as regular expression modifiers, to use them as a literal characters, we need to add a backslash in front of them to retain their literal meanings.  For example, `*` is a wildcard notation `*.txt`, indicating any text.  If we want to search `*` in the text, we need to tell the computer that the `*` is literal, using `\*`.  The following characters must always be preceded by a backslash to retain their literal meaning:
+```
+. ^ $ + ? * ( ) [ ] { } | \
+```
+
+A character class is formed using square brackets (`[]`) surrounding the characters.  For example, if we want to find either `a`, `b`, or `3`, we use `[ab3]`. Dash can be used inside of character classes to represent a range of values such as `[a-z]` or `[5-9]`.  If a dash is to be literally included in a character class, it should be either the first character in the class or it should be preceded by a backslash.  
+
+Characters and character classes are the basic building blocks of regular expressions.  These operators are:
+
+Modifier | Meaning
+---------|----------
+`^`      | anchors expression to beginning of target
+`$`      | anchors expression to end of target
+`.`      | matches any single character except newline
+`|`      | separates any single character except new line
+`()`     | groups of patterns together
+`*`      | matches 0 or more occurrences of preceding entity
+`?`      | matches 0 or 1 occurrence of preceding entity
+`+`      | matches 1 or more occurrences of preceding entity
+`{n}`    | matches exactly *n* occurrences of preceding entity
+`{n,}`   | matches at least *n* occurrences of preceding entity
+`{n,m}`  | matches between *n* and *m* occurrences
+
+In the EUSE example, we want to extract columns with names start with `PNLCD` can be specified as `^PNLCD`.  Using the function `grep`, we can compare the regular expression to the names of the EUSE data:
+```{r}
+grep('^PNLCD', names(euse.ag))
+grep('^PNLCD', names(euse.ag), value=T)
+grep('[$0-9]', names(euse.ag))
+```
+Some more complicated examples: 
+ - A string with two digits followed by one or more letters -- `[0-9][0-9][a-zA-Z]+`
+ - A string with three consecutive occurrences of `abc` -- `(abc){3}`
+ - A file name consists of all letters and ending with `.jpg` -- `^[a-zA-z]+\\.jpg$`
+ - A character string ends with one of the three animal names `chicken`, `duck`, and `pig` -- `[a-zA-Z]+chicken|duck|pig$`
+
+```{r}
+grep('[$0-9]{2}', names(euse.ag))
+grep('[$0-9]{2}', names(euse.ag), value = T)
+```
+
+In one data set I worked with, one name of a location was entered as `name` and `name ` (with an extra space).  In another data set, the crop name was entered `soybean` by some and `soybeans` by others.  R treats the two names in these two data sets as different sites or crops.  Using regular expression, we can remove the extra character:
+```
+data$crop[grep('soybean.*`, data$crop)] <- "soybeen"
+```
+Obviously, we can accomplish the same without using regular expression.  The point is, using regular expression gives us much more flexibility.
+
+Regular expressions are supported in the R functions `strsplit, grep, sub`, and `gsub`, as well as in the `regexpr` and `gregexpr` functions which are the main tools for working with regular expressions in R.
+
+### Breaking Apart Character Values
+The `strsplit` function can use a character string or regular expression to divide up a character string into smaller pieces.  
+```{r}
+sentence <- "R is a free software environment for statistical computing."
+parts <- strsplit(sentence, ' ')
+parts
+```
+The first argument of `strsplit` is the character string to break up, and the second argument is the character value or regular expression which should be used to break up the string into parts.  It returns the results in a list.  In the above example, we have one character string and the result is a list of 1.
+
+```{r}
+more <- c(sentence, "It compiles and runs on a wide variety of UNIX platforms")
+parts2 <- strsplit(more, " ")
+length(parts2)
+parts2
+```
+When the structure of the output is not important, we can use `unlist` to combine the output
+```{r}
+allparts <- unlist(parts2)
+allparts
+```
+
+### Substitutions and Tagging
+Using functions `sub` and `gsub` we can substitute text based on regular expressions.  These two functions accept a regular expression, a string containing what will be substituted for the regular expression, and the string or strings to operate on.  The `sub` function changes only the first occurrence of the regular expression, while the `gsub` function performs the substitution on all occurrences within the string.  
+
+An important use of these functions concerns numeric data, containing characters such as commas, dollar signs, or `<` signs.  For example, we want to remove the dollar signs from the following vector:
+```{r}
+values <- c("$11,123","$12,234")
+gsub('[$,]',"", values)
+```
+
+A powerful feature of substitution functions is known as tagging of regular expression.  When part of a regular expression is surrounded by parentheses, that part can be used as a substitution pattern by representing it as a backslash followed by a number.  The first tagged pattern is represented by `\\1`, the second by `\\2`, and so on.  For example, in a data of drinking water quality, I have to deal with overwhelming amount of values below method detection limits.  These limits change over time as measurement techniques improve.  Almost all variables (chemicals) were read into R as characters because of values below detection limits, represented by a less than sign (`<`) plus the detection limit (e.g., `<0.01`).  Because the detection limit changes, we can't replace it with a fixed value.  To tag the value:
+```{r}
+values <- c("0.2","0.3","<0.01")
+gsub('<([0-9.]+)','\\1', values)
+as.numeric(gsub('<([0-9.]+)','\\1', values))
+```
+
+Here is another example.  In finalcial data, a loss (negative number) is often entered as a number in parentheses.  
+```{r}
+values <- c("23.52", "(22.10)", "45.35")
+```
+To tag the number inside a pair of parentheses, we use `\\(([0-9.]+)\\)`.  The part inside the unescaped parentheses is tagged as `\\1`:
+```{r}
+gsub('\\(([0-9.]+)\\)', '-\\1', values)
+
+```
+
+## Looping
+‘Looping’, ‘cycling’, ‘iterating’ or just replicating instructions is quite an old practice that originated well before the invention of computers. It is nothing more than automating a certain multi-step process by organizing sequences of actions (‘batch’ processes) and grouping the parts in need of repetition. Even for `calculating machines,' as computers were called in the pre-electronics era, pioneers like Ada Lovelace, Charles Babbage and others, devised methods to implement such iterations.
+
+In modern – and not so modern – programming languages, where a program is a sequence of instructions, labeled or not, the loop is an evolution of the ‘jump’ instruction which asks the machine to jump to a predefined label along a sequence of instructions. The beloved and nowadays deprecated goto found in Assembler, Basic, Fortran and similar programming languages of that generation, was a means to tell the computer to jump to a specified instruction label: so, by placing that label before the location of the goto instruction, one obtained a repetition of the desired instruction a loop.
+
+Yet, the control of the sequence of operations (the program flow control) would soon become cumbersome with the increase of goto and corresponding labels within a program. Specifically, one risked of loosing control of all the gotos that transferred control to a specific label (e.g. “from how many places did we get here”?) Then, to improve the clarity of programs, all modern programming languages were equipped with special constructs that allowed the repetition of instructions or blocks of instructions. In the present days, a number of variants exist:
+- Loops that execute for a prescribed number of times, as controlled by a counter or an index, incremented at each iteration cycle; these pertain to the for family;
+- Loops based on the onset and verification of a logical condition (for example, the value of a control variable), tested at the start or at the end of the loop construct; these variants belong to the while or repeat family of loops, respectively.
+
+Loops in R
+Every time some operation/s has to be repeated, a loop may come in handy. We only need to specify how many times or upon which conditions those operations need execution: we assign initial values to a control loop variable, perform the loop and then, once finished, we typically do something with the results.
+
+But when are we supposed to use loops? Couldn’t we just replicate the desired instruction for the sufficient number of times?
+
+Well, our personal and arbitrary rule of thumb is that if you need to perform an action (say) three times or more, then a loop would serve you better; it makes the code more compact, readable and maintainable and you may save some typing. Say you discover that a certain instruction needs to be repeated once more than initially foreseen: instead of re-writing the full instruction, you may just alter the value of a variable in the test condition.
+
+There are at least three loop constructs in R:
+- `for` loop
+- `while` loop
+- `repeat` loop
+
+In all loop constructs, we have a number of operations (code) to be repeatedly run until a condition is met.  
+### The `for` loop
+In a `for` loop, the condition is presented in form of a vector.  The most frequently used vector is `1:n`.  The code
+`for (i in 1:n){...}` instructs R to run the code inside the curly brackets when `i` is part of the vector `1:n`.  For example,
+```{r}
+set.seed(101)
+u1 <- rnorm(30)
+usq <- 0
+for (i in 1:10)
+  {
+  usq[i] <- u1[i] * u1[i]
+  }
+usq
+i
+```
+A bad example of using the `for` loop is to replace, e.g., -999.999, with NAs:
+```{r}
+data <- c(rnorm(100), -999.999)
+n <- length(data)
+for (i in 1:n){
+  if (data[i] == -999.999) data[i] <- NA
+}
+```
+This is a bad example because we have simpler means to deal with the problem (`data <- ifelse(data== -999.999, NA, data)`)
+However, something similar to the "bad" `for` loop example can be very effective.  In the Midterm exam, we need to replace missing values labeled using several different codings (-999.999, -99.99, -99) with NAs.  Instead of going through columns of the data frame one at a time, we can use a `for` loop.  Suppose that the data frame name is `df` and we need to through several columns:
+```
+cols <- c(3, 5:10)
+for (i in cols){
+  df[,i] <- ifelse(df[,i] == -999.999 | df[,i] == -99.99 | df[,i] == -99, NA, df[,i])  
+}
+```
+In this example, we know which culumns needs to be checked and use the `for` loop to go through them one at a time.   
+The `for` loop is by far the most popular and its construct implies that the number of iterations is fixed and known in advance.  For example, conduct a Monte Carlo simulation with a predetermined number of iterations.
+
+### `while` and `repeat`
+In a `for` loop, we know exactly how many iterations.  In some cases, we want the loop to repeat until we meet conditions unknown to us before the looping starts.  The `while` loop has the following construct:
+```
+while (condition){
+...
+}
+```
+The `condition` is evaluated first.  If it is met, the code inside the curly brackets will not be executed.  Otherwise, R evaluates code in the code block and reevaluates the condition.  The process continues until the condition is met.
+
+
+

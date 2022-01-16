@@ -1,0 +1,954 @@
+
+# Week 11
+
+A list of commonly used latice functions:
+-`xyplot` -- scatter plots
+-`dotplot` -- Cleveland dot plots
+-`histogram` -- histograms
+-`barchart` -- bar and column charts
+-`splom` -- scatter plot matrix
+-`levelplot` -- image plots
+-`contourplot  -- contours
+-`qq` -- quantile-quantile plots
+-`qqmath` -- quantile-quantile plots, comparing data distribution to a standard probability dsitribution
+-`cloud` -- perspective (3-D) plots
+
+## Costom Panel Functions
+The panel function allows costomizing a plot, such as superimposing points, lines, text, and other objects.  For example, to add a diagonal line to the two panel xyplot, we use:
+```
+xyplot(y~x|z, data=d,
+       panel=function(x, y, ...){
+         panel.abline(0, 1, col="red")
+         panel.xyplot(x, y, ...)
+       })
+```
+
+## The Example That Started Trellis
+
+The `barley` dataset -- 
+> These data are yields in bushels per acre, of 10 varieties of barley grown in 1/40 acre plots at University Farm, St. Paul, and at the five branch experiment stations located at Waseca, Morris, Crookston, Grand Rapids, and Duluth (all in Minnesota). The varieties were grown in three randomized blocks at each of the six stations during 1931 and 1932, different land being used each year of the test.
+
+> Immer et al. (1934) present the data for each Year*Site*Variety*Block. The data here is the average yield across the three blocks.
+
+> Immer et al. (1934) refer (once) to the experiment as being conducted in 1930 and 1931, then later refer to it (repeatedly) as being conducted in 1931 and 1932. Later authors have continued the confusion.
+
+```{r, fig.height=8}
+dim(barley)
+head(barley)
+
+     dotplot(variety ~ yield | site, data = barley)
+     dotplot(variety ~ yield | site, data = barley, groups=year)     
+     dotplot(variety ~ yield | site, data = barley, groups=year, 
+             aspect=0.5, layout=c(1,6))
+     key <- simpleKey(levels(barley$year), space = "right")
+     key$text$cex <- 1.5
+     dotplot(variety ~ yield | site, data = barley, groups = year,
+             key = key,
+             xlab = "Barley Yield (bushels/acre) ",
+             aspect=0.5, layout = c(1,6), ylab=NULL)
+```
+
+Now we want to save it into a PDF file:
+```{r}
+pdf(file=paste(plotDIR, "barley.pdf", sep="/"), height=8, width=5)
+trellis.par.set(theme = canonical.theme("postscript", col=FALSE))
+trellis.par.set(list(fontsize=list(text=6),
+	             par.xlab.text=list(cex=1.5),
+                     add.text=list(cex=1.5),
+                     superpose.symbol=list(cex=.5)))
+     key <- simpleKey(levels(barley$year), space = "right")
+     key$text$cex <- 1.5
+     dotplot(variety ~ yield | site, data = barley, groups = year,
+             key = key,
+             xlab = "Barley Yield (bushels/acre) ",
+             aspect=0.5, layout = c(1,6), ylab=NULL)
+dev.off()
+```
+
+## Types of Data
+
+Data used here are from Cleveland's *Visualizing Data*.  
+
+```{r}
+## R data and code for each plot in the book
+packages(foreign)
+#data.restore ("visualizing.data")
+
+```
+### Univariate data 
+- Show and compare distributions
+  - Dot-plot
+```{r}
+book.1.1 <-
+    function()
+{
+    n <- length(levels(barley$year))
+    obj<-dotplot(variety ~ yield | site, 
+            data = barley,
+            groups = year,
+            layout = c(1, 6),
+            aspect = .5,
+            sub = list("Figure 1.1",cex=.8),
+            xlab = "Barley Yield (bushels/acre)",
+            key = list(points = 
+                         Rows(trellis.par.get("superpose.symbol"), 1:n),
+                       text = list(levels(barley$year)),
+                       columns = n))
+    print(obj)
+}
+book.1.1()
+ggVD_1.1 <- function(asp_rt=0.5){
+    p<-ggplot(barley, aes(x=yield, y=variety, color=year))+
+        xlab( "Barley Yield (bushels/acre)") +
+        geom_point() + facet_wrap(site~., ncol=1)
+print(p + theme(aspect.ratio = asp_rt))
+}
+
+ggVD_1.1()
+
+```
+  - Histogram
+    Figure 1.2
+    
+```{r}
+book.1.2 <-
+    function()
+	histogram(~ height | voice.part,
+		  data = singer, 
+		  nint = 17, 
+		  endpoints = c(59.5, 76.5),
+		  layout = c(2, 4), 
+		  aspect = 1, 
+		  sub = list("Figure 1.2",cex=.8),
+		  xlab = "Height (inches)")
+
+book.1.2()
+
+ggVD_1.2 <- function(){
+    p <- qplot(height, data = singer, xlab = "Height (inches)") +
+        geom_histogram() + facet_wrap( ~ voice.part, ncol = 2)
+    print(p+theme(aspect.ratio = 1))
+}
+    ggVD_1.2()
+
+```
+  - Quantile plot
+  
+```{r}
+
+book.2.2 <-
+    function()
+	qqmath(~ sort(singer$height[singer$voice.part=="Tenor 1"]),
+               distribution = qunif, 
+               panel = function(x, ...) {
+                   panel.qqmath(x, type = "b", ...)
+                   ##panel.qqmath(x, col = 0, pch = 16) 
+                   ##panel.qqmath(x, ...)
+               },
+               aspect = 1, 
+               sub = list("Figure 2.2",cex=.8),
+               xlab = "f-value",
+               ylab = "Tenor 1 Height (inches)")
+
+book.2.2()
+
+ggVD_2.2 <- function(){
+    fval.df <- function(x){
+        oo <- order(x)
+        n <- length(x)
+        f <- ((1:n)-0.5)/n
+        return(data.frame(value=x[oo], q=f))
+    }
+    Tenor1 <- fval.df(singer$height[singer$voice.part=="Tenor 1"])
+    ggplot(Tenor1, aes(q, value)) + geom_point() + geom_path() +
+        labs(x = "f-value",
+             y = "Tenor 1 Height (inches)") +
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.2()
+
+
+book.2.1 <-
+    function()
+	qqmath(~ height | voice.part,
+               distribution=qunif,
+               data=singer,
+               panel = function(x, ...) {
+                   panel.grid()		
+                   panel.qqmath(x, ...)
+               },
+               layout=c(2,4), 
+               aspect=1,
+               sub = list("Figure 2.1",cex=.8),
+               xlab = "f-value",
+               ylab="Height (inches)")
+
+book.2.1()
+
+ggVD_2.1 <- function(){
+ggplot(singer, aes(sample=height))+
+    stat_qq(distribution=qunif)+
+    facet_wrap(~voice.part, ncol=2)+
+    labs(x = "f-value",
+         y = "Height (inches)") + theme(aspect.ratio=1)
+}
+
+ggVD_2.1()
+
+ggVD_2.1alt <- function(){
+fval.df <- function(x){
+        oo <- order(x)
+        n <- length(x)
+        f <- ((1:n)-0.5)/n
+        return(data.frame(value=x[oo], q=f))
+    }
+    singer.q <- plyr::ddply(singer, "voice.part",
+                      function(df) fval.df(df$height))
+    ggplot(singer.q, aes(q, value))+geom_point()+
+        facet_wrap(.~voice.part, ncol=2) +
+        labs(  x = "f-value",
+               y="Height (inches)") + theme(aspect.ratio=1)
+}
+
+ggVD_2.1alt()
+
+```  
+  
+  - Quantile-quantile plot
+
+```{r}
+book.2.3 <-
+function()
+{
+	voice.part <- ordered(singer$voice.part, 
+		c("Soprano 1", "Soprano 2", "Alto 1", "Alto 2",
+			"Tenor 1", "Tenor 2", "Bass 1", "Bass 2"))
+	obj<- qq(voice.part ~ singer$height,
+		subset=voice.part=="Bass 2" | voice.part=="Tenor 1",
+		aspect=1, 
+		sub = list("Figure 2.3",cex=.8),
+		xlab = "Tenor 1 Height (inches)",
+		ylab = "Base 2 Height (inches)")
+	print(obj)
+}
+book.2.3()
+
+ggVD_2.3 <- function(){
+    q <- function(x, probs = ppoints(100)) {
+        data.frame(q = probs, value = quantile(x, probs))
+    }
+    temp <- singer[singer$voice.part=="Bass 2" |
+                   singer$voice.part=="Tenor 1", ]
+    n <- min(c(sum(singer$voice.part=="Bass 2"),
+               sum(singer$voice.part=="Tenor 1")))
+    temp.q <- plyr::ddply(temp, "voice.part",
+                    function(df) q(df$height, ppoints(n)))
+    temp.df <- reshape2::recast(temp.q, q ~ voice.part, id.var = c(2,1))
+    names(temp.df) <- c("q", "Bass2", "Tenor1")
+    pg <- ggplot(temp.df, aes(Tenor1, Bass2)) +
+        geom_point() + geom_abline() +
+        coord_equal(xlim=range(temp.q$value),
+                    ylim=range(temp.q$value))
+    print(pg+theme(aspect.ratio=1))
+}
+ggVD_2.3()
+
+book.2.4 <-
+function()
+{
+	voice.part <- ordered(singer$voice.part,
+		c("Soprano 1", "Soprano 2", "Alto 1", "Alto 2",
+			"Tenor 1", "Tenor 2", "Bass 1", "Bass 2"))
+	bass.tenor.qq <- qq(voice.part ~ singer$height,
+		subset=voice.part=="Bass 2" | voice.part=="Tenor 1")
+	tmd(bass.tenor.qq,
+		aspect=1,
+		ylab = "Difference (inches)",
+		sub = list("Figure 2.4",cex=.8),
+		xlab = "Mean (inches)")
+}
+book.2.4()
+
+ggVD_2.4 <- function(){
+    q <- function(x, probs = ppoints(100)) {
+        data.frame(q = probs, value = quantile(x, probs))
+    }
+    temp <- singer[singer$voice.part=="Bass 2" |
+                   singer$voice.part=="Tenor 1", ]
+    n <- min(c(sum(singer$voice.part=="Bass 2"),
+               sum(singer$voice.part=="Tenor 1")))
+    temp.q <- plyr::ddply(temp, "voice.part",
+                    function(df) q(df$height, ppoints(n)))
+    temp.df <- reshape2::recast(temp.q, q ~ voice.part, id.var = c(2,1))
+    names(temp.df) <- c("q", "Bass2", "Tenor1")
+    temp.df$mn <- (temp.df$Bass2+temp.df$Tenor1)/2
+    temp.df$dff <- temp.df$Bass2-temp.df$Tenor1
+    pg <- ggplot(temp.df, aes(mn,dff)) +
+        geom_point() + geom_hline(yintercept=0)
+    print(pg+theme(aspect.ratio=1))
+}
+ggVD_2.4()
+
+```
+  - Box plot
+```{r}
+book.2.6 <-
+function(){
+	oldpty <- par("pty")
+	par(pty = "s")
+	data <-
+	c(0.9, 1.6, 2.26305, 2.55052, 2.61059, 2.69284, 2.78511, 2.80955, 
+		2.94647, 2.96043, 3.05728, 3.15748, 3.18033, 3.20021, 
+		3.20156, 3.24435, 3.33231, 3.34176, 3.3762, 3.39578, 3.4925,
+		3.55195, 3.56207, 3.65149, 3.72746, 3.73338, 3.73869, 
+		3.80469, 3.85224, 3.91386, 3.93034, 4.02351, 4.03947, 
+	        4.05481, 4.10111, 4.26249, 4.28782, 4.37586, 4.48811, 
+		4.6001, 4.65677, 4.66167, 4.73211, 4.80803, 4.9812, 5.17246,
+		5.3156, 5.35086, 5.36848, 5.48167, 5.68, 5.98848, 6.2, 7.1, 
+		7.4)
+	boxplot(data, rep(NA, length(data)), ylab = "Data")
+	usr <- par("usr")
+	x <- usr[1] + (usr[2] - usr[1]) * 0.5
+	at <- c(0.9, 1.6, 3.2, 3.8, 4.65, 6.2, 7.2)
+	arrows(rep(x * 1.15, 7), at, rep(x, 7), at)
+	mtext("Figure 2.6",1,1,cex=.8)
+	text(rep(x * 1.2, 7), at, adj = 0,
+		labels = c("outside value", "lower adjacent value", 
+			"lower quartile", "median", "upper quartile", 
+			"upper adjacent value", "outside values"))	
+	par(pty = oldpty)
+	invisible()
+}
+
+book.2.6()
+
+ggVD_2.6 <- function(){
+    ydata <- c(0.9, 1.6, 2.26305, 2.55052,
+               2.61059, 2.69284, 2.78511, 2.80955, 2.94647, 2.96043,
+               3.05728, 3.15748, 3.18033, 3.20021, 3.20156, 3.24435,
+               3.33231, 3.34176, 3.37620, 3.39578, 3.49250, 3.55195,
+               3.56207, 3.65149, 3.72746, 3.73338, 3.73869, 3.80469,
+               3.85224, 3.91386, 3.93034, 4.02351, 4.03947, 4.05481,
+               4.10111, 4.26249, 4.28782, 4.37586, 4.48811, 4.6001,
+               4.65677, 4.66167, 4.73211, 4.80803, 4.9812, 5.17246,
+               5.3156, 5.35086, 5.36848, 5.48167, 5.68, 5.98848, 6.2,
+               7.1, 7.4)
+    text <- c("outside value", "lower adjacent value",
+              "lower quartile", "median", "upper quartile",
+              "upper adjacent value", "outside values")
+    at <- c(0.9, 1.6, 3.2,3.8, 4.65, 6.2, 7.2)
+
+    data = data.frame(y = ydata, x = 1)
+
+    p <- ggplot(data, aes(x ="", y)) + stat_boxplot() +
+    annotate("text", x = 1.5, y = at, label = paste("<--", text, sep = ""))
+    print(p)
+}
+
+ggVD_2.6()
+
+
+book.2.7 <-
+function()
+{
+	data <- round(c(0.9, 1.6, 2.263047,
+		2.550518, 2.610592, 2.69284, 2.785113, 
+		2.809547, 2.946467, 2.96044, 3.057283, 
+		3.15748, 3.180327, 3.200206, 
+		3.20156, 3.244347, 3.332312, 
+		3.341763, 3.3762, 3.395778, 3.492497, 
+		3.551945, 3.562066, 3.65149, 
+		3.7274632, 3.73338, 3.738686, 3.80469, 
+		3.85224, 3.91386, 3.93034, 
+		4.02351, 4.039466, 4.05481, 4.101108, 4.262486, 
+		4.28782, 4.375864, 4.48811, 4.6001, 
+		4.656775, 4.661673, 4.73211, 
+		4.80803, 4.9812, 5.172464, 
+		5.3156, 5.35086, 5.36848, 
+		5.48167, 5.68, 5.98848, 6.2, 
+		7.1, 7.4),5)
+	uq <- quantile(data,.75)
+	lq <- quantile(data,.25)
+	r <- 1.5*(uq-lq)
+	h <- c(lq-r,1.6,lq,uq,6.2,uq+r)
+	writing <- c("lower quartile - 1.5 r",
+		"lower adjacent value",
+		"lower quartile",
+		"upper quartile",
+		 "upper adjacent value",
+		 "upper quartile + 1.5 r")
+	qqmath(~ data,
+		distribution = qunif,
+		panel = substitute(function(x,...) {
+			reference.line <- trellis.par.get("reference.line")
+			panel.abline(h = h, lwd = reference.line$lwd, lty = reference.line$lty, col = reference.line$col)
+			panel.qqmath(x, type="b", ...)
+			panel.text(rep(0,3), h[4:6], writing[4:6], adj=0)
+			panel.text(rep(1,3), h[1:3], writing[1:3], adj=1)
+		}),
+		aspect = 1, 
+		sub = list("Figure 2.7",cex=.8),
+		xlab = "f-value", 
+		ylab = "Data")
+}
+
+book.2.7()
+
+ggVD_2.7 <- function(){
+    data <- round(c(0.9, 1.6, 2.263047,
+                    2.550518, 2.610592, 2.69284, 2.785113, 
+                    2.809547, 2.946467, 2.96044, 3.057283, 
+                    3.15748, 3.180327, 3.200206, 
+                    3.20156, 3.244347, 3.332312, 
+                    3.341763, 3.3762, 3.395778, 3.492497, 
+                    3.551945, 3.562066, 3.65149, 
+                    3.7274632, 3.73338, 3.738686, 3.80469, 
+                    3.85224, 3.91386, 3.93034, 
+                    4.02351, 4.039466, 4.05481, 4.101108, 4.262486, 
+                    4.28782, 4.375864, 4.48811, 4.6001, 
+                    4.656775, 4.661673, 4.73211, 
+                    4.80803, 4.9812, 5.172464, 
+                    5.3156, 5.35086, 5.36848, 
+                    5.48167, 5.68, 5.98848, 6.2, 
+                    7.1, 7.4),5)
+    n <- length(data)
+    uq <- quantile(data,.75)
+    lq <- quantile(data,.25)
+    r <- 1.5*(uq-lq)
+    h <- c(lq-r,1.6,lq,uq,6.2,uq+r)
+    writing <- c("lower quartile - 1.5 r",
+                 "lower adjacent value",
+                 "lower quartile",
+                 "upper quartile",
+		 "upper adjacent value",
+		 "upper quartile + 1.5 r")
+    data = data.frame(y = data, fval=((1:n)-0.5)/n)
+    
+    p<- ggplot(data, aes(fval, y)) + geom_point() +
+        annotate("text", x = 0.125, y = h[4:6], label = writing[4:6]) + 
+        annotate("text", x = 0.875, y = h[1:3], label = writing[1:3])
+    print(p + theme(aspect.ratio=1))
+}
+
+ggVD_2.7()
+
+book.2.8 <-
+    function()
+	bwplot(voice.part ~ height,
+               data=singer,
+               aspect=1,
+               sub = list("Figure 2.8",cex=.8),
+               xlab="Height (inches)")
+
+book.2.8()
+
+ggVD_2.8 <- function(){
+    ggplot(singer, aes(voice.part, height)) + geom_boxplot() +
+        coord_flip()+labs(xlab = " Height (inches)")+theme(aspect.ratio=1)
+    
+}
+ggVD_2.8()
+
+```
+
+  - Normal Q-Q plot
+    First, let's take a lok of the basic Q-Q plot  
+```{r}
+book.2.9 <- function(){
+    data <- sort(singer$height[singer$voice.part=="Alto 1"])
+    qqmath(~ data, #qqmath computes the fvalue
+           distribution = qunif,
+           panel = function(x, ...) {
+               panel.grid()
+               panel.qqmath(x, type="b", ...)
+           },
+           aspect = 1, 
+           ylim = range(data, qnorm(ppoints(data), mean(data),
+                                    sqrt(var(data)))),
+           sub = list("Figure 2.9",cex=.8),
+           xlab = "f-value",
+           ylab = "Alto 1 Height (inches)")
+}
+
+book.2.9()
+
+ggVD_2.9 <- function(){
+    fval <- function(x){
+        oo <- order(x)
+        return((((1:max(oo))-0.5)/max(oo))[oo])
+    }
+    data <- (sort(singer$height[singer$voice.part=="Alto 1"]))
+    alto1 <- data.frame(height= data)
+    alto1$f <- fval(data)
+
+    ggplot(alto1, aes(f, height)) +geom_point() +
+        labs(y = "Alto 1 Height (inches)", x = "f-value") +
+        geom_path() + theme(aspect.ratio=1)
+}
+ggVD_2.9()    
+
+book.2.10 <- function(){
+    data <- sort(singer$height[singer$voice.part=="Alto 1"])
+    x <- ppoints(data)
+    y <- qnorm(x, mean(data), sqrt(var(data)))
+    xyplot(y ~ x, 
+           panel = function(x, y){
+               panel.grid()
+               panel.xyplot(x, y, type = "l")
+           },
+           ylim = range(data, y),
+           aspect = 1, 
+           sub = list("Figure 2.10",cex=.8),
+           xlab = "f-value", 
+           ylab = "Normal Quantile Function")
+}
+
+book.2.10()
+
+ggVD_2.10 <- function(){
+    data <- sort(singer$height[singer$voice.part=="Alto 1"])
+    x <- ppoints(data)
+    y <- qnorm(x, mean(data), sqrt(var(data)))
+    
+    ggplot(data.frame(x, y), (aes(x, y))) + geom_line() +
+        labs(y = "Normal Quantile Function", x = "f-value")+
+        theme(aspect.ratio=1)
+}
+ggVD_2.10()
+
+```
+
+Now, the relationship between the f-values of the two plots.
+
+$$
+q_{\mu, \sigma}(f) = \mu + \sigma q_{0,1}(f)
+$$
+
+```{r}
+book.2.11 <- function(){
+    qqmath(~ height | voice.part,
+           data=singer,
+           prepanel = prepanel.qqmathline,
+           panel = function(x, ...) {
+               panel.grid()
+               panel.qqmathline(x, distribution = qnorm)
+               panel.qqmath(x, ...)
+           },
+           layout=c(2,4),
+           aspect=1, 
+           sub = list("Figure 2.11",cex=.8),
+           xlab = "Unit Normal Quantile",
+           ylab="Height (inches)")
+
+}
+book.2.11()
+
+ggVD_2.11 <- function()
+    ggplot(singer, aes(sample = height)) + stat_qq(distribution = qnorm)+
+        geom_qq_line()+ facet_wrap(. ~ voice.part, ncol = 2) +
+        labs(x = "Unit Normal Quantile", y = "Height (inches)") +
+        theme(aspect.ratio=1)
+ggVD_2.11()
+```
+
+### Fits and Residuals
+
+```{r}
+book.2.12 <- function(){
+    dotplot(tapply(singer$height,singer$voice.part,mean), 
+            aspect=1,
+            sub = list("Figure 2.12",cex=.8),
+            xlab="Mean Height (inches)")
+}
+
+book.2.12()
+
+ggVD_2.12 <- function(){
+    meandot <- data.frame(tapply(singer$height, singer$voice.part, mean))
+    singer.means = data.frame(
+        voice.part=ordered(rownames(meandot),
+                           levels=rev(c("Soprano 1", "Soprano 2",
+                                        "Alto 1", "Alto 2" ,
+                                        "Tenor 1", "Tenor 2",
+                                        "Bass 1", "Bass 2"))),
+        height=meandot[,1])
+    
+    ggplot(singer.means, aes(height,voice.part)) + geom_point() +
+        labs(x = "Mean Height (inches)")  + theme(aspect.ratio=1)
+}
+
+ggVD_2.12()
+
+```
+
+Fitted values versus residuals
+
+$$
+h_{pi} = \hat{h}_{pi} + \hat{\varepsilon}_{pi}
+$$
+
+```{r}
+book.2.13 <- function(){
+    bwplot(voice.part ~ oneway(height~voice.part, spread = 1)$residuals,
+           data = singer,
+           aspect=0.75,
+           panel = function(x,y){
+               panel.bwplot(x,y)
+               panel.abline(v=0)
+           },
+           sub = list("Figure 2.13",cex=.8),
+           xlab = "Residual Height (inches)")
+}
+
+book.2.13()
+
+ggVD_2.13 <- function(){
+    res.height <- oneway(height ~ voice.part, data = singer,
+                         spread = 1)$residuals 
+    
+    ggplot(singer, aes(voice.part, res.height)) + geom_boxplot() +
+        coord_flip( )+ labs(xlab = "Residual Height (inches)") +
+        theme(aspect.ratio=0.75) 
+}
+ggVD_2.13()
+```
+
+### Homogeneity and Pooling
+```{r}
+book.2.14 <- function()
+{
+    res.height <- oneway(height ~ voice.part, data = singer,
+                         spread = 1)$residuals
+    qqmath(~ res.height | singer$voice.part, 
+           distribution = substitute(function(p) quantile(res.height, p)),
+           panel=function(x){
+               panel.grid()
+               panel.qqmathline(x)
+               panel.qqmath(x)
+           },
+           aspect=1,
+           layout=c(2,4),
+           sub = list("Figure 2.14",cex=.8),
+           xlab = "Pooled Residual Height (inches)",
+           ylab = "Residual Height (inches)")
+}
+book.2.14()
+
+ggVD_2.14 <- function(){
+    res.height <- oneway(height ~ voice.part, data = singer,
+                         spread = 1)$residuals
+    
+    ggplot(singer, aes(sample =res.height )) +
+        stat_qq(distribution = qnorm) +
+        geom_qq_line() +
+        facet_wrap(~voice.part, ncol = 2) +
+        labs(x = "Pooled Residual Height (inches)",
+             y = "Residual Height (inches)") +
+        theme(aspect.ratio=1)
+}
+ggVD_2.14()
+
+```
+
+### Checking for normality of the pooled residuals
+```{r}
+book.2.15 <- function()
+{
+    qqmath(~ oneway(height ~ voice.part, spread = 1)$residuals, 
+           data = singer,
+           distribution = qunif,
+           aspect = 1,
+           sub = list("Figure 2.15",cex=.8),
+           xlab = "f-value",
+           ylab = "Residual Height (inches)")
+}
+
+book.2.15()
+
+ggVD_2.15 <- function()
+{
+    res.height.f <- ((1:dim(singer)[1]) -.5)/(dim(singer)[1])
+    singer$res.height.f <- res.height.f 
+    singer$res.height <- oneway(height ~ voice.part,
+                                data = singer, spread = 1)$residuals
+    
+    ggplot(singer, aes(sample = res.height)) +
+        stat_qq(distribution = qunif) +
+        labs(x = "f-value", y = "Residual Height (inches)")+
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.15()
+
+book.2.16 <- function(){
+    qqmath(~ oneway(height~voice.part, spread = 1)$residuals,
+           data = singer,
+           prepanel = prepanel.qqmathline, 
+           panel = function(x, ...) {
+               panel.grid()
+               panel.qqmathline(x, distribution = qnorm)
+               panel.qqmath(x,...)
+           },
+           aspect=1,
+           sub = list("Figure 2.16",cex=.8),
+           xlab = "Unit Normal Quantile",
+           ylab="Residual Height (inches)")
+}    
+
+book.2.16()
+
+ggVD_2.16 <- function(){
+    data <- singer
+    data$res.height <- oneway(height~voice.part, 
+                              spread = 1, data=singer)$residuals
+    ggplot(data, aes(sample = res.height)) +
+    stat_qq(distribution = qnorm) +
+    geom_qq_line()+labs(x = "f-value", y = "Residual")+
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.16()
+```
+
+### The `rfs` plot
+
+```{r}
+book.2.17 <- function(){
+    rfs(oneway(height~voice.part, data = singer, spread = 1), 
+        aspect=1, 
+        sub = list("Figure 2.17",cex=.8),
+        ylab = "Height (inches)")
+}
+book.2.17()
+
+ggVD_2.17 <- function(){
+    Fitoneway <- oneway(height~voice.part, data = singer, spread = 1)
+    fitmean <- Fitoneway$fitted-mean(Fitoneway$fitted)
+    singer.rfs <- data.frame(Fitted_minus_mean=fitmean,
+                             Residual=Fitoneway$residuals) 
+    singer.m <-reshape2::melt(singer.rfs) 
+    ggplot(singer.m)+stat_qq(aes(sample = value),
+                             distribution = qunif) +
+        facet_wrap(.~variable) +
+        labs(y = "Height (inches)")+
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.17()
+```
+
+### Bivariate data
+- Displaying functional relationship between two variables
+  - Scatter plot
+    Figure 1.3
+  - Smoothing
+
+### Trivariate and hypervariate data
+- Exploring interactions and conditional relationships
+  - Scatter-plot matrix
+    Figures 1.4 & 1.5
+  - Conditional plots
+  
+### Multiway data
+Figures 1.1 & 1.6
+
+- Multiway dotplot
+  - The barley data
+  - The lizard data
+  
+## Univariate Data -- Displaying and Comparing Distributions
+
+### Displaying distribution
+Figure 2.1
+- Quantile plot -- 
+  Figure 2.2
+  Figure 2.3 versus Figure 2.4
+- Boxplot
+  Figure 2.6 versus Figure 2.7
+- Histogram
+
+### Comparing distributions
+
+- Boxplot
+  Figure 2.8
+- Normal quantile-quantile (Q-Q) plot
+  Figures 2.10-11
+- Q-Q plot
+  Figure 2.9
+- Multiplicative versus additive shift
+  Figures 2.19-33
+  
+### An Example of Graphical Exploratory Data Analysis
+
+The foodweb for the animal species in an ecosystem is a description of
+who eats whom.  A chain is a path through the web. It begins with a
+species that is eaten by no other, moves to a species that the first
+species eats, moves next to a species that the second species eats,
+and so forth until the chain ends at a species that preys on no
+other. If there are 7 species in the chain then there are 6 links
+between species, and the length of the chain is 6. The mean chain
+length of a web is the mean of the lengths of all chains in the web.
+
+Ecosystems can be categorized based on their spatial dimensions: two-,
+three-, or mixed-dimensional ecosystems. The following plots analyze
+the mean chain length data from 113 ecosystems. 
+
+```{r}
+library(foreign)
+library(lattice)
+library(survival)  # using this library for date object
+data.restore (paste(dataDIR, "visualizing.data", sep="/"))
+
+## quantile plot
+book.2.34 <-
+function()
+	qqmath(~ mean.length | dimension,
+		distribution = qunif,
+		data=food.web,
+	        panel = function(x, ...) {
+			panel.grid()
+	                panel.qqmath(x, ...)
+	        },
+		layout=c(1,3),
+		aspect=1,
+		sub = list("Figure 2.34",cex=.8),
+		xlab = "f-value",
+		ylab="Chain Length")
+
+book.2.35 <-
+function()
+{
+	foo.m <- oneway(mean.length~dimension, data = food.web, location = median, spread=1)
+	set.seed(19)
+	xyplot(sqrt(abs(residuals(foo.m))) ~ jitter(fitted.values(foo.m),factor=0.3),
+		aspect=1,
+	        panel = substitute(function(x,y){
+			panel.xyplot(x,y)
+			srmads <- tapply(abs(residuals(foo.m)),
+				food.web$dimension, median)
+			panel.lines(foo.m$location,srmads)
+		}),
+		sub = list("Figure 2.35",cex=.8),
+		xlab="Jittered Median Chain Length",
+		ylab="Square Root Absolute Residual Chain Length")
+}
+
+
+book.2.36 <-
+function()
+	qqmath(~ mean.length | dimension,
+		data=food.web,
+		prepanel = prepanel.qqmathline,
+	        panel = function(x, ...) {
+			panel.grid()
+	                panel.qqmathline(x, distribution = qnorm)
+	                panel.qqmath(x, ...)
+	        },
+		layout=c(1,3),
+		aspect=1, 
+		sub = list("Figure 2.36",cex=.8),
+		xlab = "Unit Normal Quantile",
+		ylab="Chain Length")
+book.2.37 <-
+function()
+{
+	foo.m <- oneway(log(mean.length, 2) ~ dimension, data = food.web, location = median, spread = 1)
+	set.seed(19)
+	xyplot(sqrt(abs(residuals(foo.m))) ~ jitter(fitted.values(foo.m), factor = 0.3),
+	        panel = substitute(function(x, y) {
+			panel.xyplot(x, y)
+			add.line <- trellis.par.get("add.line")
+			panel.lines(foo.m$location, tapply(y, food.web$dimension, median), 
+				lty = add.line$lty, lwd = add.line$lwd, col = add.line$col)
+		}),
+		aspect = 1,
+		sub = list("Figure 2.37",cex=.8),
+		xlab = "Jittered Median Log 2 Chain Length",
+		ylab = "Square Root Absolute Residual Log 2 Chain Length")
+}
+
+book.2.38 <-
+function()
+	qqmath(~ log(mean.length,2) | dimension,
+		data=food.web,
+		prepanel = prepanel.qqmathline,
+	        panel = function(x, ...) {
+			panel.grid()
+	                panel.qqmathline(x, distribution = qnorm)
+	                panel.qqmath(x, ...)
+	        },
+		layout=c(1,3),
+		aspect=1, 
+		sub = list("Figure 2.38",cex=.8),
+		xlab = "Unit Normal Quantile",
+		ylab="Log 2 Chain Length")
+book.2.39 <-
+function()
+{
+	foo.m <- oneway(1/mean.length ~ dimension, data = food.web, location = median, spread = 1)
+	set.seed(19)
+	xyplot(sqrt(abs(residuals(foo.m))) ~ jitter(fitted.values(foo.m), factor = 0.3),
+	        panel = substitute(function(x,y) {
+			panel.xyplot(x,y)
+	                add.line <- trellis.par.get("add.line")
+			panel.lines(foo.m$location, tapply(y, food.web$dimension, median),
+			lty = add.line$lty, lwd = add.line$lwd, col = add.line$col)
+		}),
+		aspect = 1,
+		sub = list("Figure 2.39",cex=.8),
+		xlab = "Jittered Median Link Fraction",
+		ylab = "Square Root Absolute Residual Link Fraction")
+}
+book.2.4 <-
+function()
+{
+	voice.part <- ordered(singer$voice.part,
+		c("Soprano 1", "Soprano 2", "Alto 1", "Alto 2",
+			"Tenor 1", "Tenor 2", "Bass 1", "Bass 2"))
+	bass.tenor.qq <- qq(voice.part ~ singer$height,
+		subset=voice.part=="Bass 2" | voice.part=="Tenor 1")
+	tmd(bass.tenor.qq,
+		aspect=1,
+		ylab = "Difference (inches)",
+		sub = list("Figure 2.4",cex=.8),
+		xlab = "Mean (inches)")
+}
+book.2.40 <-
+function()
+	qqmath(~ (1/mean.length) | dimension,
+	       data = food.web,
+	       panel = function(x, ...){
+			panel.grid()
+			panel.qqmath(x, ...)
+			panel.qqmathline(x, distribution = qnorm)
+	       },
+	       layout = c(1, 3),
+	       aspect = 1,
+		sub = list("Figure 2.40",cex=.8),
+	       xlab = "Unit Normal Quantile", 
+	       ylab = "Link Fraction")
+book.2.41 <-
+function()
+{
+	res <- oneway((1/mean.length)~dimension, data = food.web, spread = 1)$residuals
+	qqmath(~ res | food.web$dimension,
+		distribution = substitute(function(p) quantile(res, p)),
+		panel=function(x,...){
+			panel.grid()
+			panel.abline(0, 1)
+			panel.qqmath(x, ...)
+		},
+		layout=c(1,3),
+		aspect=1,
+		sub = list("Figure 2.41",cex=.8),
+		xlab = "Pooled Residual Link Fraction",
+		ylab = "Residual Link Fraction")
+}
+
+book.2.42 <-
+function()
+	rfs(oneway((1/mean.length)~dimension, data = food.web, spread = 1),
+		sub = list("Figure 2.42",cex=.8),
+		aspect=1,
+		ylab = "Link Fraction")

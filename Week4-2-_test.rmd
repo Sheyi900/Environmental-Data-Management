@@ -1,0 +1,180 @@
+
+
+# Week 3
+
+## Data Management Objectives
+- Subsetting data using square brackets
+- Using `tapply`
+- Using logic comparisons
+
+
+
+- Florida is always a problem state, not only in presidential
+    election
+- Setting TP criterion for the Everglades -- almost a decade long
+    litigation 
+- Setting nutrient criteria for coastal waters -- another long
+    legal battle 
+- Legal battles between EPA and the State, between the State and
+    environmental groups, between State and industry, between
+   environmental groups and EPA, ...
+
+## Background -- EPA's Approach 
+
+Criteria for monitoring station inclusion
+- Stations must have > 4 observations of TN, TP, Chla, and Turbidity
+- All 0 concentrations observations should be dropped
+- At least 2 years of data
+- Annual means must be based on $> 4$ data points, at least 1 in
+    summer and 1 in winter
+- Once the data are cleaned, calculate annual geometric means
+    for each station
+
+## Using Preprocessed Data
+
+
+All existing data were pooled and stations near each other are combined
+- The resulting data `SouthFlorida.csv`
+- Data summary
+```{r, echo=FALSE}
+sf_path=paste(dataDIR, "SouthFlorida.csv", sep="/")
+Data <- read.csv(sf_path, header=T)
+summary(Data)[,c(5,21)]
+```
+
+## Data Processing Considerations
+
+- Drop sites with fewer than 4 observations
+- Drop sites with fewer than 4 data points for TP, TN, CHLA, or Turbidity 
+- Drop observations with 0 concentration values for TP, TN, CHLA, or Turb
+- Drop sites with less than 2 years of records
+- Drop sites without summer or winter observations
+
+## Data for Analysis
+
+After processing, calculating annual geometric means of TP, TN, CHLA, and Turb
+
+R Coding Considerations
+
+- Dates -- summer and winter
+- Counting by site
+- Calculating log-means for by site-year combination
+- EPA used function `tapply`
+
+```{r}
+#tapply(Data, INDEX, FUN, ..., simplify=TRUE)
+```
+
+## tapply
+
+
+### Step 1: Dropping sites with fewer than 4 observations (rows)
+
+- Find sites with fewer than 4 TP samples
+
+```{r}
+site.drop <- tapply(Data$TP.S, Data$Site, FUN=function(x) sum(!is.na(x))<4)
+```
+
+- The function used in `tapply` is `sum(!is.na(x)) < 4`: returns a logic value of whether the total number of non-missing is less than 4 
+- The results is a vector of `TRUE` and `FALSE`, each is associated with a site name
+
+
+```{r}
+sites.drop <- tapply(Data$TP.S, Data$Site,
+      function(x) sum(!is.na(x)) < 4) |
+              tapply(Data$TN.S, Data$Site,
+      function(x) sum(!is.na(x))<4)   |
+              tapply(Data$TURB.S, Data$Site,
+      function(x) sum(!is.na(x))<4)   |
+              tapply(Data$CHLA, Data$Site,
+      function(x) sum(!is.na(x))<4)
+sites.drop <- names(sites.drop)[sites.drop]
+if(length(sites.drop)>0)
+    Data <- Data[!is.element(Data$Site, sites.drop),]
+```
+
+### Step 2: Dropping 0 concentration values
+```{r}
+Data$TP.S[Data$TP.S==0] <- NA
+Data$TN.S[Data$TN.S==0] <- NA
+Data$TURB.S[Data$TURB.S==0] <- NA
+Data$CHLA[Data$CHLA==0] <- NA
+```
+
+### Step 3: Dropping Years with Fewer Than 4 Observations
+
+```{r}
+site.yr <- paste(Data$Site, Data$Year)
+siteyr.drop <-
+  tapply(Data$CHLA, site.yr, 
+        function(x) sum(!is.na(x))<4) |
+  tapply(Data$TURB.S, site.yr, 
+        function(x) sum(!is.na(x))<4) |
+  tapply(Data$TP.S, site.yr, 
+        function(x) sum(!is.na(x))<4) |
+  tapply(Data$TN.S, site.yr, 
+        function(x) sum(!is.na(x))<4)
+siteyr.drop <- 
+  names(siteyr.drop)[siteyr.drop]
+if(length(siteyr.drop)>0)
+  Data <- Data[!is.element(site.yr, 
+                     siteyr.drop),]
+```
+
+### Step 4: At Least One Obs in Summer and One in Winter
+
+Define summer and winter using dates
+
+- Convert date column into a `Date` object
+
+```{r}
+Data$dateR <- as.Date(Data$DateT)
+```
+
+- Extract month:
+
+```{r}
+Data$Month <- ordered(months(Data$dateR), 
+                      levels=month.name)
+Data$Quarter <- quarters(Data$dateR)
+tmp <- as.numeric(Data$Month)
+Data$Summer <- 0
+Data$Summer[tmp>=5 & tmp<=9] <- 1
+## EPA forgot to code winter
+```
+
+Use `tapply` in Step 4
+
+```{r}
+siteyr.summ <- paste(Data$Site, Data$Year, Data$Summer)
+siteyrsum.drop <-
+  tapply(Data$CHLA, siteyr.summ, 
+         function(x) sum(!is.na(x))==0) |
+  tapply(Data$TURB.S, siteyr.summ, 
+         function(x) sum(!is.na(x))==0) |
+  tapply(Data$TP.S, siteyr.summ, 
+         function(x) sum(!is.na(x))==0) |
+  tapply(Data$TN.S, siteyr.summ, 
+         function(x) sum(!is.na(x))==0)
+siteyrsum.drop <- names(siteyrsum.drop)[siteyrsum.drop]
+
+if (length(siteyrsum.drop)>0)
+  Data <- Data[!is.element(grpyr.summ, grpyrsum.drop),]
+```  
+
+Step 5: Calculating Annual Geometric Means
+
+- Annumal geometric means for each site
+
+```{r}
+#tapply(log(Data$TP.S), Data$site.yr, mean, na.rm=T)
+```
+
+- The result is put in a data frame named `TP.log`, along with site annual means of TN, CHLA, Turb, and other parameters
+
+## Concluding Remarks
+
+- Order of steps matters
+- Several pages of code are difficult to debug
+- Statistical concerns: geometric means are based on different sample sizes

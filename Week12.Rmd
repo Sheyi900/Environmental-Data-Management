@@ -1,0 +1,817 @@
+``
+```{r, echo=F, results='hide',message=FALSE}
+source("_FrontMatter.R")
+packages(tidyverse)
+```
+# Week 12
+
+## Types of Data
+- Univariate data -- graphs for display and compare distributions
+  - Histogram -- for checking symmetry
+  - Box-and-whiskers plot -- summarizing the distribution
+  - Quantile plot -- a detailed display of data distributions
+  - Normal quantile plot (normal Q-Q) -- comparing the data distribution to the normal distribution
+    - Q-Q math -- comparing to a specific distribution
+  - Quantile-quantile plot (Q-Q) -- comparing two distributions
+- Basic types of differneces when comparing two distributions
+  - additive difference
+  - multiplicative difference
+  - the relationship between additive and multiplicative
+- Fit and residuals -- understanding the difference among groups and within groups
+  When two data distributions are known to differ by an additive shift, we know that the difference between them lies in their locations.  The two most commonly used candidates for location estimation are the median and the mean.  One way to understand a distribution is to seperate the location estimate from the data.  That is, each data point can be represented as a sum of two parts: the location and the difference between the data point and the location.  
+  $$
+  y_i = \bar{y} + \epsilon_i
+  $$
+When comparing multiple data sets:
+$$
+  y_{ij} = \bar{y}_j + \epsilon_{ij}
+$$
+for $j = 1, \cdots, J$. The location estimates $\bar{y}_j$ is called the "fit" and $\epsilon_{ij}$ is called the "residual". When the differences among the $J$ variables are additive, the residual distributions are identical.  One convenient way to check for additive shift is to examine residual distributions.
+
+```{r}
+book.2.12 <- function(){
+    dotplot(tapply(singer$height,singer$voice.part,mean), 
+            aspect=1,
+            sub = list("Figure 2.12",cex=.8),
+            xlab="Mean Height (inches)")
+}
+
+book.2.12()
+
+ggVD_2.12 <- function(){
+    meandot <- data.frame(tapply(singer$height, singer$voice.part, mean))
+    singer.means = data.frame(
+        voice.part=ordered(rownames(meandot),
+                           levels=rev(c("Soprano 1", "Soprano 2",
+                                        "Alto 1", "Alto 2" ,
+                                        "Tenor 1", "Tenor 2",
+                                        "Bass 1", "Bass 2"))),
+        height=meandot[,1])
+    
+    ggplot(singer.means, aes(height,voice.part)) + geom_point() +
+        labs(x = "Mean Height (inches)")  + theme(aspect.ratio=1)
+}
+
+ggVD_2.12()
+
+book.2.13 <- function(){
+    bwplot(voice.part ~ oneway(height~voice.part, spread = 1)$residuals,
+           data = singer,
+           aspect=0.75,
+           panel = function(x,y){
+               panel.bwplot(x,y)
+               panel.abline(v=0)
+           },
+           sub = list("Figure 2.13",cex=.8),
+           xlab = "Residual Height (inches)")
+}
+
+book.2.13()
+
+ggVD_2.13 <- function(){
+    res.height <- oneway(height ~ voice.part, data = singer,
+                         spread = 1)$residuals 
+    
+    ggplot(singer, aes(voice.part, res.height)) + geom_boxplot() +
+        coord_flip( )+ labs(xlab = "Residual Height (inches)") +
+        theme(aspect.ratio=0.75) 
+}
+ggVD_2.13()
+
+```
+The decomposition of a data point into a fit and a residual special allows us to separated the variation in singer's heights into two components. The fitted values (the fits) account for the variation in the heights attributed to the voice-part variable and the residuals are the remaining variation in the data after the variation due to the shifting means has been removed. When we are convinced that the residual distributions are identical, we can pool all residuals together to better characterize the distribution.  Another way to use the pooled residuals is to check for the homogeneity assumption (residual distributions are identical). 
+
+```{r}
+book.2.14 <- function()
+{
+    res.height <- oneway(height ~ voice.part, data = singer,
+                         spread = 1)$residuals
+    qqmath(~ res.height | singer$voice.part, 
+           distribution = substitute(function(p) quantile(res.height, p)),
+           panel=function(x){
+               panel.grid()
+               panel.qqmathline(x)
+               panel.qqmath(x)
+           },
+           aspect=1,
+           layout=c(2,4),
+           sub = list("Figure 2.14",cex=.8),
+           xlab = "Pooled Residual Height (inches)",
+           ylab = "Residual Height (inches)")
+}
+book.2.14()
+
+ggVD_2.14 <- function(){
+    res.height <- oneway(height ~ voice.part, data = singer,
+                         spread = 1)$residuals
+    
+    ggplot(singer, aes(sample =res.height )) +
+        stat_qq(distribution = qnorm) +
+        geom_qq_line() +
+        facet_wrap(~voice.part, ncol = 2) +
+        labs(x = "Pooled Residual Height (inches)",
+             y = "Residual Height (inches)") +
+        theme(aspect.ratio=1)
+}
+ggVD_2.14()
+
+```
+
+### Checking for normality of the pooled residuals
+```{r}
+book.2.15 <- function()
+{
+    qqmath(~ oneway(height ~ voice.part, spread = 1)$residuals, 
+           data = singer,
+           distribution = qunif,
+           aspect = 1,
+           sub = list("Figure 2.15",cex=.8),
+           xlab = "f-value",
+           ylab = "Residual Height (inches)")
+}
+
+book.2.15()
+
+ggVD_2.15 <- function()
+{
+    res.height.f <- ((1:dim(singer)[1]) -.5)/(dim(singer)[1])
+    singer$res.height.f <- res.height.f 
+    singer$res.height <- oneway(height ~ voice.part,
+                                data = singer, spread = 1)$residuals
+    
+    ggplot(singer, aes(sample = res.height)) +
+        stat_qq(distribution = qunif) +
+        labs(x = "f-value", y = "Residual Height (inches)")+
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.15()
+
+book.2.16 <- function(){
+    qqmath(~ oneway(height~voice.part, spread = 1)$residuals,
+           data = singer,
+           prepanel = prepanel.qqmathline, 
+           panel = function(x, ...) {
+               panel.grid()
+               panel.qqmathline(x, distribution = qnorm)
+               panel.qqmath(x,...)
+           },
+           aspect=1,
+           sub = list("Figure 2.16",cex=.8),
+           xlab = "Unit Normal Quantile",
+           ylab="Residual Height (inches)")
+}    
+
+book.2.16()
+
+ggVD_2.16 <- function(){
+    data <- singer
+    data$res.height <- oneway(height~voice.part, 
+                              spread = 1, data=singer)$residuals
+    ggplot(data, aes(sample = res.height)) +
+    stat_qq(distribution = qnorm) +
+    geom_qq_line()+labs(x = "f-value", y = "Residual")+
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.16()
+```
+
+### The `rfs` plot
+
+
+```{r}
+book.2.17 <- function(){
+    rfs(oneway(height~voice.part, data = singer, spread = 1), 
+        aspect=1, 
+        sub = list("Figure 2.17",cex=.8),
+        ylab = "Height (inches)")
+}
+book.2.17()
+
+ggVD_2.17 <- function(){
+    Fitoneway <- oneway(height~voice.part, data = singer, spread = 1)
+    fitmean <- Fitoneway$fitted-mean(Fitoneway$fitted)
+    singer.rfs <- data.frame(Fitted_minus_mean=fitmean,
+                             Residual=Fitoneway$residuals) 
+    singer.m <-reshape2::melt(singer.rfs) 
+    ggplot(singer.m)+stat_qq(aes(sample = value),
+                             distribution = qunif) +
+        facet_wrap(.~variable) +
+        labs(y = "Height (inches)")+
+        theme(aspect.ratio=1)
+}
+
+ggVD_2.17()
+```
+
+## Additive versus multiplicative shifts
+
+An example of multiplicative shift
+```{r}
+book.2.19 <-
+  function()
+    qqmath(~ time |  nv.vv,
+           data= fusion.time,
+           distribution = qunif,
+           panel = function(x, ...) {
+             panel.grid()
+             panel.qqmath(x, ...)
+           },
+           aspect=1,
+           layout=c(2,1),
+           sub = list("Figure 2.19",cex=.8),
+           xlab = "f-value",
+           ylab="Time (seconds)")
+
+book.2.19()
+
+
+ggVD_2.19 <- 
+  function()
+    ggplot(fusion.time, aes(sample=time))+
+  geom_point(stat="qq", distribution=qunif)+
+  facet_grid(. ~ nv.vv) +theme(aspect.ratio=1)
+
+ggVD_2.19()
+
+#2.22: Normal QQ plots (NV/VV) for fusion time
+book.2.22 <-
+  function()
+    qqmath(~ time | nv.vv,
+           data=fusion.time,
+           prepanel = prepanel.qqmathline,
+           panel = function(x, ...) {
+             panel.grid()
+             panel.qqmathline(x, distribution = qnorm)
+             panel.qqmath(x, ...)
+           },
+           aspect=1,
+           layout=c(2,1),
+           sub = list("Figure 2.22",cex=.8),
+           xlab = "Unit Normal Quantile",
+           ylab="Time (seconds)")
+book.2.22()
+
+
+ggVD_2.22 <- 
+    function()
+        ggplot(fusion.time, aes(sample=time))+
+      stat_qq()+
+          facet_grid(.~nv.vv)+
+          geom_qq_line() + theme(aspect.ratio=1)
+ggVD_2.22()
+
+##2.23: box plot of fusion time by NV and VV
+book.2.23 <-
+    function()
+        bwplot(nv.vv ~ time,
+               data=fusion.time,
+             aspect = .5,
+             sub = list("Figure 2.23",cex=.8),
+             xlab="Time (seconds)")
+book.2.23()
+
+
+ggVD_2.23 <- 
+    function()
+        ggplot(fusion.time, aes(x=nv.vv, y=time))+
+            stat_boxplot(geom='errorbar', width=0.5, linetype='dashed')+
+            stat_boxplot()+
+            coord_flip()  + theme(aspect.ratio=0.5)
+
+ggVD_2.23()
+
+                                  #2.24: Normal QQ plots (NV/VV) of log fusion times     
+book.2.24 <-
+    function()
+        qqmath(~ log(time,2) | nv.vv,
+               data=fusion.time,
+               prepanel=prepanel.qqmathline,
+               panel = function(x, ...) {
+                   panel.grid()
+                   panel.qqmathline(x, distribution = qnorm)
+                   panel.qqmath(x, ...)
+               },
+           aspect=1,
+           layout=c(2,1),
+           sub = list("Figure 2.24",cex=.8),
+           xlab = "Unit Normal Quantile",
+           ylab="Log Time (log 2 seconds)")
+book.2.24()
+
+ggVD_2.24 <- 
+    function()
+{ ## illustrating how the qq_line is estimated
+    int.sl.log <- fusion.time %>% group_by(nv.vv) %>% 
+        summarize(q25    = quantile(log(time,2),0.25, type=5),
+                  q75    = quantile(log(time,2),0.75, type=5),
+                  norm25 = qnorm( 0.25),
+                  norm75 = qnorm( 0.75),
+                  slope.log = (q25 - q75) / (norm25 - norm75),
+                  int.log = q25 - slope.log * norm25) #%>%
+    p <- ggplot(fusion.time, aes(sample=log(time,2)))+
+        stat_qq() + geom_qq_line()+
+        facet_grid(.~nv.vv)+
+        theme(aspect.ratio=1)
+    print(p)
+}
+ggVD_2.24()
+
+```
+
+It is relatively simple to compare the differences in locations in a graph, but not so when comparing spread (variance).  The s-l plot (spread to location) is perhaps the best graphical device for comparing variances.  Based on the defininition of variance ($\frac{1}{n}\sum(y_i-\bar{y})^2$) or the mean of residual sum of squares), we may say that the standard deviation is a typical distance between a data point and the mean.  The distance between a data point and the mean (a deviation from the mean) is the absolute value of the residual.  The standard deviation should be very close to the median of these deviances.  The s-l plot graphes the square root of the absolute value of residuals ($\sqrt{|\epsilon_i|}$) against the fitted means (or medians) and connects the median of the absolute deviations (*mads*) with a line segment.
+```{r}
+#2.25: Spread-location plot for fusion times (Sq rt of abs residuals against fitted)
+
+
+book.2.25 <-
+    function()
+{
+    fusion.time.m <- oneway(time ~ nv.vv, data=fusion.time,
+                            location=median, spread=1)
+    xyplot(sqrt(abs(residuals(fusion.time.m))) ~
+               jitter(fitted.values(fusion.time.m),factor=0.3),
+           aspect=1,
+           panel=substitute(function(x,y){
+             panel.xyplot(x,y)
+             srmads <- sqrt(tapply(abs(residuals(fusion.time.m)),
+                                   fusion.time$nv.vv, median))
+             panel.lines(fusion.time.m$location,srmads)
+           }),
+           sub = list("Figure 2.25",cex=.8),
+           xlab="Jittered Median Time (sec)",
+           ylab="Square Root Absolute Residual Time (square root sec)")
+  }
+book.2.25()
+
+
+
+ggVD_2.25 <- 
+    function(){
+        fusion.time.m <- fusion.time %>%
+        group_by(nv.vv)%>%
+        mutate(med=median(time),
+         res=sqrt(abs(time-med)))
+    sl.line <- fusion.time.m %>%
+    group_by(nv.vv)%>%
+    summarise(location=median(time),
+            res.med=median(res))
+    p <- ggplot(fusion.time.m, aes(x=med,y=res,color=nv.vv)) +
+    geom_jitter(alpha=0.5, width=0.1)+
+    geom_line(data=sl.line, aes(x=location, y=res.med), col="blue")
+    print(p+theme(aspect.ratio=1))}
+  
+ggVD_2.25()
+
+
+# 2.26: Spread-location plot for log fusion times (Sq rt of abs residuals against fitted)
+
+book.2.26 <-
+function()
+{
+    fusion.time.m <- oneway(log(time,2) ~ nv.vv,data=fusion.time,
+                            location = median, spread=1)
+	xyplot(sqrt(abs(residuals(fusion.time.m))) ~
+                   jitter(fitted.values(fusion.time.m),factor=0.3),
+		aspect=1,
+		panel=substitute(function(x,y){
+			panel.xyplot(x,y)
+			srmads <- tapply(abs(residuals(fusion.time.m)),
+				fusion.time$nv.vv,median)
+			panel.lines(fusion.time.m$location,srmads)
+		}),
+		sub = list("Figure 2.26",cex=.8),
+		xlab="Jittered Median Log Time (log 2 sec)",
+		ylab="Square Root Absolute Residual Log Time (square root absolute log 2 sec)")
+}
+book.2.26()
+
+ggVD_2.26 <- 
+function(){
+    fusion.time.m.log <- fusion.time %>%
+        group_by(nv.vv)%>%
+  mutate(med.log=median(log(time,2)),
+         res.log=sqrt(abs(log(time,2)-med.log)))
+    sl.line.log <- fusion.time.m.log %>%
+        group_by(nv.vv)%>%
+        summarise(location.log=median(log(time,2)),
+                  res.med.log=median(res.log))
+    ggplot(fusion.time.m.log, aes(x=med.log,y=res.log,color=nv.vv)) +
+        geom_jitter(alpha=0.5, width=0.05)+
+        geom_line(data=sl.line.log, aes(x=location.log, y=res.med.log),
+                  col="blue") + theme(aspect.ratio=1)
+}
+ggVD_2.26() 
+
+```
+
+## Using Q-Q plot to Check for Additive Shift
+
+```{r}
+
+book.2.27 <-
+  function()
+      qq(nv.vv ~ time,
+         data = fusion.time,
+         aspect = 1,
+         sub = list("Figure 2.27",cex=.8),
+         xlab="NV Time (seconds)",
+         ylab="VV Time (seconds)")
+book.2.27()
+
+
+#@flag - runs by piece, but not as a function
+ggVD_2.27 <- 
+function(){
+    q <- function(x, probs = ppoints(100)) {
+        data.frame(q = probs, value = quantile(x, probs))
+    }
+    n <- min(table(fusion.time$nv.vv))
+    fusion.q <- plyr::ddply(fusion.time, "nv.vv",
+                      function(df) q(df$time, ppoints(n)))
+    fusion.df <- reshape2::recast(fusion.q, q ~ nv.vv, id.var = c(2,1))
+    pg <- ggplot(fusion.df, aes(NV, VV) ) + geom_point() +
+        geom_abline() + coord_fixed(ylim=c(0,45), xlim=c(0,45))
+    print(pg+theme(aspect.ratio=1))
+
+}
+ggVD_2.27()
+
+
+#2.28: QQ plot comparing NV and VV log fusion times
+book.2.28 <-
+    function()
+      qq(nv.vv ~ log(time, 2),
+         data = fusion.time,
+         aspect = 1,
+         sub = list("Figure 2.28",cex=.8),
+         xlab = "Log NV Time (log 2 seconds)",
+         ylab = "Log VV Time (log 2 seconds)")
+book.2.28()
+
+# **This one uses the df created in ggVD.2.27
+
+ggVD_2.28 <- function()
+{
+    q <- function(x, probs = ppoints(100)) {
+        data.frame(q = probs, value = quantile(x, probs))
+    }
+    n <- min(table(fusion.time$nv.vv))
+    fusion.q <- plyr::ddply(fusion.time, "nv.vv",
+                      function(df) q(log(df$time, 2), ppoints(n)))
+    fusion.df <- reshape2::recast(fusion.q, q ~ nv.vv, id.var = c(2,1))
+    pg <- ggplot(fusion.df, aes(NV, VV) ) + geom_point() +
+        geom_abline() + coord_fixed(ylim=c(0,5), xlim=c(0,5))
+    print(pg+theme(aspect.ratio=1))
+}
+
+```
+
+Now, we complete the initial data analysis with these plots:
+
+```{r}
+#2.29: Tukey mean-difference plot for log time
+book.2.29 <-
+  function()
+    tmd(qq(nv.vv ~ log(time, 2), data = fusion.time),
+        aspect = 1,
+        sub = list("Figure 2.29",cex=.8),
+        xlab = "Mean (log 2 seconds)",
+        ylab = "Difference (log 2 seconds)")
+book.2.29()
+
+ggVD_2.29 <- function(){
+    q <- function(x, probs = ppoints(100)) {
+        data.frame(q = probs, value = quantile(x, probs))
+    }
+    n <- min(table(fusion.time$nv.vv))
+    fusion.q <- plyr::ddply(fusion.time, "nv.vv",
+                      function(df) q(log(df$time, 2), ppoints(n)))
+    fusion.df <- reshape2::recast(fusion.q, q ~ nv.vv, id.var = c(2,1))
+    fusion.df$mn <- (fusion.df$VV+fusion.df$VV)/2
+    fusion.df$dff <- fusion.df$VV-fusion.df$NV
+    pg <- ggplot(fusion.df, aes(mn, dff) ) + geom_point() +
+        geom_abline() +
+        labs(x=paste("Mean (",expression(log[2]), "seconds)"),
+             y="Difference (log2 seconds)")
+    print(pg+theme(aspect.ratio=1))
+}
+# QQ plots comparing Pooled residuals with Grouped residuals
+book.2.30 <-  function(){
+    res <- oneway(log(time,2)~nv.vv, data = fusion.time,
+                  spread = 1)$residuals
+    qqmath(~ res | fusion.time$nv.vv,
+           distribution = substitute(function(p) quantile(res, p)),
+           panel=function(x, ...){
+               panel.grid()
+               panel.abline(0, 1)
+               panel.qqmath(x, ...)
+           },
+           aspect=1,
+           layout=c(2,1),
+           sub = list("Figure 2.30",cex=.8),
+           xlab = "Pooled Residual Log Time (log 2 seconds)",
+           ylab = "Residual Log Time (log 2 seconds)")
+}
+book.2.30()
+
+
+ggVD_2.30 <- function(){
+    fusion.time$pool.res <- oneway(log(time,2)~nv.vv, data = fusion.time,
+                                   spread = 1)$residuals
+    ggplot(data=fusion.time)+
+        stat_qq(distribution = substitute(function(p)
+            quantile(fusion.time$pool.res, p)), aes(sample=pool.res))+
+        geom_qq_line(distribution = substitute(function(p)
+            quantile(fusion.time$pool.res, p)), aes(sample=pool.res))+
+        facet_grid(.~nv.vv) + 
+        labs(x="Pooled Residual Log Time (log 2 seconds)",
+             y="Residual Log Time (log 2 seconds)") +
+        theme(aspect.ratio=1)
+}
+ggVD_2.30()
+  
+  
+# 2.31: Normal QQ plot of pooled residuals for log fusion time   
+book.2.31 <-
+      function()
+        qqmath(~ oneway(log(time,2)~nv.vv, data = fusion.time, spread = 1)$residuals,
+               prepanel = prepanel.qqmathline, 
+               panel = function(x, ...) {
+                 panel.grid()
+                 panel.qqmathline(x, distribution = qnorm)
+                 panel.qqmath(x, ...)
+               },
+               aspect = 1,
+               sub = list("Figure 2.31",cex=.8),
+               xlab = "Unit Normal Quantile", 
+               ylab = "Residual Log Time (log 2 seconds)")
+ book.2.31()   
+    
+# Trying to use geom_qq_line() instead of geom_abline()
+ggVD_2.31 <- 
+  function()
+  {
+    fusion.time$pool.res <- oneway(log(time,2)~nv.vv, data = fusion.time,
+                                   spread = 1)$residuals
+    
+    ggplot(data=fusion.time, aes(sample=pool.res))+
+        stat_qq()+ geom_qq_line() +
+        labs(x="Unit Normal Quantile",
+             y="Residual Log Time (log 2 seconds)")+
+        theme(aspect.ratio=1)
+  }
+ggVD_2.31()
+
+# 2.32: Residual and fitted value plots for log fusion time   
+book.2.32 <-
+      function()
+        rfs(oneway(log(time, 2)~nv.vv, data = fusion.time, spread = 1),
+            aspect=1,
+            sub = list("Figure 2.32",cex=.8),
+            ylab = "Log Time (log 2 seconds)")
+
+book.2.32()
+
+ggVD_2.32 <- 
+  function(){
+      OW <- oneway(log(time,2)~nv.vv, data = fusion.time, spread = 1)
+      OW.df <- data.frame(
+          fitted_minus_mean=OW$fitted.values- mean(fitted(OW)),
+          residuals=OW$residuals
+      )
+      OW.dfm <- reshape2::melt(data=OW.df)
+      
+      ggplot(OW.dfm)+
+          stat_qq(aes(sample=value), distribution=qunif)+ 
+          facet_grid(.~variable) + theme(aspect.ratio=1)
+  }
+ggVD_2.32()
+
+```
+
+## Transformation to Normality
+
+Power transformation of a variable -- a practical way to transform a non-normal distributed variable into a normal one:
+
+$y = x^\tau$ for $\tau \neq 0$ and $y = \log(x)$ for $\tau=0$.
+
+```{r}
+
+book.2.33 <-
+function()
+{
+	attach(fusion.time)
+	vvtime <- time[nv.vv=="VV"]
+	transformed <- cbind(outer(vvtime,c(-1,-1/2,-1/4),"^"),log(vvtime),
+		(outer(vvtime,c(1/4,1/2,1),"^")))
+	fusion.time.power <- data.frame(transformed=c(transformed),
+		lambda = factor(rep(c(-1,-1/2,-1/4,0,1/4,1/2,1),rep(length(vvtime),7))))
+	ans <- qqmath(~ transformed | lambda,
+		data=fusion.time.power,
+		prepanel = prepanel.qqmathline,
+	        panel = function(x, ...) {
+			panel.grid(h = 0)
+	                panel.qqmathline(x, distribution = qnorm)
+	                panel.qqmath(x, ...)
+	        },
+		aspect=1,
+		scale = list(y = "free"),
+		layout=c(2,4), 
+		sub = list("Figure 2.33",cex=.8),
+		xlab = "Unit Normal Quantile",
+		ylab = "VV Time")
+	detach()
+	ans
+}
+
+book.2.33()
+
+ggVD_2.33 <- function(){
+    attach(fusion.time)
+    vvtime <- time[nv.vv=="VV"]
+    transformed <- cbind(outer(vvtime,c(-1,-1/2,-1/4),"^"),log(vvtime),
+    (outer(vvtime,c(1/4,1/2,1),"^")))
+    fusion.time.power <- data.frame(transformed=c(transformed),
+                                    lambda = factor(rep(c(-1,-1/2,-1/4,0,1/4,1/2,1),rep(length(vvtime),7))))
+    detach()
+    ggplot(fusion.time.power, aes(sample=transformed))+
+        stat_qq() + geom_qq_line() +
+        facet_wrap(~ lambda, ncol=2, scale='free')+
+        theme(aspect.ratio=1)
+}
+
+```
+
+
+## An Example of Graphical Exploratory Data Analysis
+
+The foodweb for the animal species in an ecosystem is a description of
+who eats whom.  A chain is a path through the web. It begins with a
+species that is eaten by no other, moves to a species that the first
+species eats, moves next to a species that the second species eats,
+and so forth until the chain ends at a species that preys on no
+other. If there are 7 species in the chain then there are 6 links
+between species, and the length of the chain is 6. The mean chain
+length of a web is the mean of the lengths of all chains in the web.
+
+Ecosystems can be categorized based on their spatial dimensions: two-,
+three-, or mixed-dimensional ecosystems. The following plots analyze
+the mean chain length data from 113 ecosystems. 
+
+```{r}
+
+## quantile plot
+book.2.34 <-
+function()
+	qqmath(~ mean.length | dimension,
+		distribution = qunif,
+		data=food.web,
+	        panel = function(x, ...) {
+			panel.grid()
+	                panel.qqmath(x, ...)
+	        },
+		layout=c(1,3),
+		aspect=1,
+		sub = list("Figure 2.34",cex=.8),
+		xlab = "f-value",
+		ylab="Chain Length")
+
+book.2.35 <-
+function()
+{
+	foo.m <- oneway(mean.length~dimension, data = food.web, location = median, spread=1)
+	set.seed(19)
+	xyplot(sqrt(abs(residuals(foo.m))) ~ jitter(fitted.values(foo.m),factor=0.3),
+		aspect=1,
+	        panel = substitute(function(x,y){
+			panel.xyplot(x,y)
+			srmads <- tapply(abs(residuals(foo.m)),
+				food.web$dimension, median)
+			panel.lines(foo.m$location,srmads)
+		}),
+		sub = list("Figure 2.35",cex=.8),
+		xlab="Jittered Median Chain Length",
+		ylab="Square Root Absolute Residual Chain Length")
+}
+
+
+book.2.36 <-
+function()
+	qqmath(~ mean.length | dimension,
+		data=food.web,
+		prepanel = prepanel.qqmathline,
+	        panel = function(x, ...) {
+			panel.grid()
+	                panel.qqmathline(x, distribution = qnorm)
+	                panel.qqmath(x, ...)
+	        },
+		layout=c(1,3),
+		aspect=1, 
+		sub = list("Figure 2.36",cex=.8),
+		xlab = "Unit Normal Quantile",
+		ylab="Chain Length")
+book.2.37 <-
+function()
+{
+	foo.m <- oneway(log(mean.length, 2) ~ dimension, data = food.web, location = median, spread = 1)
+	set.seed(19)
+	xyplot(sqrt(abs(residuals(foo.m))) ~ jitter(fitted.values(foo.m), factor = 0.3),
+	        panel = substitute(function(x, y) {
+			panel.xyplot(x, y)
+			add.line <- trellis.par.get("add.line")
+			panel.lines(foo.m$location, tapply(y, food.web$dimension, median), 
+				lty = add.line$lty, lwd = add.line$lwd, col = add.line$col)
+		}),
+		aspect = 1,
+		sub = list("Figure 2.37",cex=.8),
+		xlab = "Jittered Median Log 2 Chain Length",
+		ylab = "Square Root Absolute Residual Log 2 Chain Length")
+}
+
+book.2.38 <-
+function()
+	qqmath(~ log(mean.length,2) | dimension,
+		data=food.web,
+		prepanel = prepanel.qqmathline,
+	        panel = function(x, ...) {
+			panel.grid()
+	                panel.qqmathline(x, distribution = qnorm)
+	                panel.qqmath(x, ...)
+	        },
+		layout=c(1,3),
+		aspect=1, 
+		sub = list("Figure 2.38",cex=.8),
+		xlab = "Unit Normal Quantile",
+		ylab="Log 2 Chain Length")
+book.2.39 <-
+function()
+{
+	foo.m <- oneway(1/mean.length ~ dimension, data = food.web, location = median, spread = 1)
+	set.seed(19)
+	xyplot(sqrt(abs(residuals(foo.m))) ~ jitter(fitted.values(foo.m), factor = 0.3),
+	        panel = substitute(function(x,y) {
+			panel.xyplot(x,y)
+	                add.line <- trellis.par.get("add.line")
+			panel.lines(foo.m$location, tapply(y, food.web$dimension, median),
+			lty = add.line$lty, lwd = add.line$lwd, col = add.line$col)
+		}),
+		aspect = 1,
+		sub = list("Figure 2.39",cex=.8),
+		xlab = "Jittered Median Link Fraction",
+		ylab = "Square Root Absolute Residual Link Fraction")
+}
+book.2.4 <-
+function()
+{
+	voice.part <- ordered(singer$voice.part,
+		c("Soprano 1", "Soprano 2", "Alto 1", "Alto 2",
+			"Tenor 1", "Tenor 2", "Bass 1", "Bass 2"))
+	bass.tenor.qq <- qq(voice.part ~ singer$height,
+		subset=voice.part=="Bass 2" | voice.part=="Tenor 1")
+	tmd(bass.tenor.qq,
+		aspect=1,
+		ylab = "Difference (inches)",
+		sub = list("Figure 2.4",cex=.8),
+		xlab = "Mean (inches)")
+}
+book.2.40 <-
+function()
+	qqmath(~ (1/mean.length) | dimension,
+	       data = food.web,
+	       panel = function(x, ...){
+			panel.grid()
+			panel.qqmath(x, ...)
+			panel.qqmathline(x, distribution = qnorm)
+	       },
+	       layout = c(1, 3),
+	       aspect = 1,
+		sub = list("Figure 2.40",cex=.8),
+	       xlab = "Unit Normal Quantile", 
+	       ylab = "Link Fraction")
+book.2.41 <-
+function()
+{
+	res <- oneway((1/mean.length)~dimension, data = food.web, spread = 1)$residuals
+	qqmath(~ res | food.web$dimension,
+		distribution = substitute(function(p) quantile(res, p)),
+		panel=function(x,...){
+			panel.grid()
+			panel.abline(0, 1)
+			panel.qqmath(x, ...)
+		},
+		layout=c(1,3),
+		aspect=1,
+		sub = list("Figure 2.41",cex=.8),
+		xlab = "Pooled Residual Link Fraction",
+		ylab = "Residual Link Fraction")
+}
+
+book.2.42 <-
+function()
+	rfs(oneway((1/mean.length)~dimension, data = food.web, spread = 1),
+		sub = list("Figure 2.42",cex=.8),
+		aspect=1,
+		ylab = "Link Fraction")
+```

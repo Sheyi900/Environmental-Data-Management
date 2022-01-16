@@ -1,0 +1,365 @@
+
+# Week 12: Conditioning
+## The Ethanol Data
+
+Brinkman (1981) published a dataset documenting the NOx (NO and NO2) emission from a single-cylinder engine using ethanol as fuel.  The experiment imeasured the NOx emission under different combinations of two operation conditions: compression ratio of the engine (C, the volume inside the cylinder when the piston is retracted divided by the volume when the piston is at its maximum point of penetration) and the equivalence ratio (E, a measure of the richness of the air and ethanol fuel mixture).  Cleveland used this dataset in his book **Visualizing Data** to demonstrate the conditional plots.
+
+```{r}
+## using lattice
+eth <- ethanol
+splom(eth)
+hist(eth)
+## using gglopt2 (actually GGally)
+#ggpairs(ethanol, upper="blank")
+
+```
+There are 88 data points.  From the scatter plot matrix, we are tempted to infer that NOx emission is largely determined by the equivalence ratio.  The engine compress ratio is not a factor.  However, the scatter plot of NOx against C does not take E into consideration and the scatter plot of NOx against E does not take C into consideration.  An important concept in data analysis of more than three dimensions is interaction -- the effect of C on NOx may vary when C changes.  In environmental sciences, we find that interaction is common.  Furthermore, the strong effect of E can mask the effect of C.  Cleveland showed a conditional plot (co-plot):
+```{r}
+## Using lattice
+eth <- ethanol
+eth$EE <- equal.count(ethanol$E, number=9, overlap=1/4)
+xyplot(NOx ~ C | EE, data = eth,
+       xlab = "Compression ratio", ylab = "NOx (micrograms/J)",
+       panel = function(x, y) {
+           panel.grid(h=-1, v= 2)
+           panel.xyplot(x, y)
+           panel.loess(x,y, span=1)
+       },
+       layout=c(5,2),
+       aspect = 2)
+
+## using ggplot2
+eth <- ethanol
+fn <- function(data = eth$E, number = 4, ...) {
+     intrv <<- as.data.frame(co.intervals(data, number,
+         ...))
+     mg_y <- sort(unique(data))
+     intervals <- plyr::ldply(mg_y, function(x) {
+         t(as.numeric(x < intrv$V2 & x > intrv$V1))
+     })
+     tmp <- reshape2::melt(cbind(mg_y, intervals), id.var = 1)
+     tmp[tmp$value > 0, 1:2]
+ }
+ eth.ordered <- merge(eth, fn(number = 9, overlap = 0.25), by.x="E", by.y="mg_y")
+ 
+intrv <- with(intrv, paste(V1, V2, sep = "-"))
+
+ eth.ordered <- rename(eth.ordered, c(variable = "EE"))
+ eth.ordered$EE <- factor(eth.ordered$EE,
+     labels = intrv)
+
+p <- ggplot(eth.ordered, aes(x=C, y=NOx)) +
+     geom_point() + facet_wrap(~EE, nrow = 2)
+ print(p+geom_smooth(method=lm))
+ print(p+geom_smooth(method="loess", span=1))
+ print(p+geom_smooth(method="gam"))
+
+```
+This coplot is a series of scatter plot of NOx against C.  Each plot uses a subset of the data selected based on E.  These intervals are selected using the equal count method with overlap of 1/4.  The coplot shows that NOx does depend on C; for low values of E, NOx increases with C, and for medium and high values of E, NOx is constant as a function of C.  The underlying pattern seems to be linear.  
+
+We can also look at the three-D relationship from the other angle:
+```{r}
+## Using lattice
+xyplot(NOx ~ E | C, data = ethanol,
+       prepanel = function(x, y) prepanel.loess(x, y, span = 1),
+       xlab = "Equivalence ratio", ylab = "NOx (micrograms/J)",
+       panel = function(x, y) {
+           panel.grid(h=-1, v= 2)
+           panel.xyplot(x, y)
+           panel.loess(x,y, span=0.75, degree=2)
+       },
+       aspect = "xy")
+
+## Using ggplot2
+eth <- ethanol
+eth.ordered <- merge(eth, fn(data=eth$C, number = 9, overlap = 0.25), by.x="C", by.y="mg_y")
+ 
+intrv <- with(intrv, paste(V1, V2, sep = "-"))
+
+ eth.ordered <- rename(eth.ordered, c(variable = "CC"))
+ eth.ordered$CC <- factor(eth.ordered$CC,
+     labels = intrv)
+
+p <- ggplot(eth.ordered, aes(x=E, y=NOx)) +
+     geom_point() + facet_wrap(~CC, nrow = 2)
+ print(p+geom_smooth(method="loess", span=0.75))
+```
+The coplot shows that the peak concentration of NOx occurs near E=0.9 for all five values of C.  But the value of NOx at the peak increases slightly as C increases.  These two coplots show that the effect of C on NOx depends on the value of E, and vice versa, so there is an interaction between the factors.  
+This example shows the value of coplot -- it is an easy to use tool for exploring high-dimensional data.  Using coplot, we can explore the data easily.  The lattice package provides a great deal of flexibility to facilitate this exploration.  For example, we can rearrance the layout of the panels to better illustrate the point:
+```
+xyplot(NOx ~ C | E, data = ethanol,
+       prepanel = function(x, y) prepanel.loess(x, y, span = 1),
+       xlab = "Compression ratio", ylab = "NOx (micrograms/J)",
+       panel = function(x, y) {
+           panel.grid(h=-1, v= 2)
+           panel.xyplot(x, y)
+           panel.loess(x,y, span=1)
+       }, layout=c(5,2),
+       aspect = 2)
+
+xyplot(NOx ~ E | C, data = ethanol,
+       prepanel = function(x, y) prepanel.loess(x, y, span = 1),
+       xlab = "Equivalence ratio", ylab = "NOx (micrograms/J)",
+       panel = function(x, y) {
+           panel.grid(h=-1, v= 2)
+           panel.xyplot(x, y)
+           panel.loess(x,y, span=0.75, degree=2)
+       }, layout=c(3,2),
+       aspect = "xy")
+```
+
+The story of the NOx data was the result of several iterations of selecting the number of intervals and the appropriate layout.  The goals are (1) to better understand the structure of the data and (2) to better present the structure.
+
+We have seen several examples already:
+
+The PM2.5 data from Baltimore
+```{r}
+pmdata<-read.table(paste (dataDIR, "PM-RAW-DATA.txt", sep="/"),header=TRUE)
+pmdata$rain<-pmdata$Precip > 0
+pmdata$log.wind<-log(pmdata$AvgWind)
+pmdata$z.log.wind<-as.vector(scale(pmdata$log.wind))
+pmdata$z.temp<-as.vector(scale(pmdata$AvgTemp))
+pmdata$log.value<-log(pmdata$value)
+## dates were recorded as days since Jan. 1, 2003
+pmdata$Dates <-  as.Date("2003-01-01") + pmdata$date-1
+pmdata$Weekday <- weekdays(pmdata$Dates, abbreviate=T)
+pmdata$Month <- ordered(months(pmdata$Dates, T), levels=month.abb)
+
+## using lattice
+obj1<-xyplot(log.value~AvgTemp, panel=function(x,y,...){
+  panel.grid()
+  panel.xyplot(x,y, col=grey(0.65), cex=0.25, ...)
+  panel.loess(x,y,span=1, degree=1,col=1,...)
+},    scales=list(x=list(cex=0.75, tck=0.2), y=list(cex=0.75, tck=0.2)),
+##               par.settings=trellis.par.temp,
+       data=pmdata, xlab="", ylab="Log PM2.5")
+
+
+obj2 <- xyplot(log.value~AvgTemp|Month, panel=function(x,y,...){
+  panel.grid()
+  panel.xyplot(x,y, col=grey(0.65), cex=0.25, ...)
+  panel.loess(x,y,span=1, degree=1,col=1,...)
+  }, layout=c(12, 1),
+       scales=list(y=list(tck=0.2),
+         x=list(relation="free", cex=0.5,tck=c(0.2,0),
+           alternating=c(1,2))),
+       ## x-axis relation and font size
+  ##par.settings=trellis.par.temp,
+  data=pmdata, xlab="Average Daily Temperature (F)", ylab="Log PM2.5")
+print(obj1, position=c(1/4, 0.3, 3/4, 1), more=T)
+print(obj2, position=c(0, 0, 1,0.35), more=F)
+
+## using ggplot2
+p1 <- ggplot(pmdata, aes(x=AvgTemp, y=log.value))
+obj1 <- p1 + geom_point(size=0.25) + geom_smooth(method="loess", span=1) + theme(aspect.ratio=0.75) + xlab(" ") + ylab("Log PM2.5")
+obj2 <- p1 + geom_point(size=0.25) + facet_grid(.~Month, scales="free_x") + geom_smooth(method="loess", span=1) + theme(aspect.ratio=2) + scale_x_continuous("Average Daily Temperature (F)") + scale_y_continuous("Log PM2.5")
+
+#grid.arrange(obj1, obj2, ncol=1)
+```
+
+The Airquality data from R:
+
+```{r}
+data(airquality)
+splom(airquality[,1:4])
+## compared to:
+## pairs(Ozone~Solar.R+Wind+Temp, data=airquality)
+
+Temperature <- equal.count(airquality$Temp, 3, 0.25)
+Wind_Speed <- equal.count(airquality$Wind, 3, 0.25)
+Solar_R <- equal.count(airquality$Solar.R, 3, 0.25)
+
+airQ <- airquality
+
+airQ <- merge(airQ, fn(data=airQ$Temp, number = 3, overlap = 0.25), by.x="Temp", by.y="mg_y")
+intrv <- with(intrv, paste(V1, V2, sep = "-"))
+airQ <- rename(airQ, c(variable = "Temperature"))
+airQ$Temperature <- factor(airQ$Temperature, labels = intrv)
+
+airQ <- merge(airQ, fn(data=airQ$Wind, number = 3, overlap = 0.25), by.x="Wind", by.y="mg_y") 
+intrv <- with(intrv, paste(V1, V2, sep = "-"))
+airQ <- rename(airQ, c(variable = "Wind_Speed"))
+airQ$Wind_Speed <- factor(airQ$Wind_Speed, labels = intrv)
+
+airQ <- merge(airQ, fn(data=airQ$Solar.R, number = 3, overlap = 0.25), by.x="Solar.R", by.y="mg_y") 
+intrv <- with(intrv, paste(V1, V2, sep = "-"))
+airQ <- rename(airQ, c(variable = "Solar_Radiation"))
+airQ$Solar_Radiation <- factor(airQ$Solar_Radiation, labels = intrv)
+
+
+xyplot(sqrt(Ozone) ~ Wind|Temperature,
+       data=airquality,
+       panel=function(x,y,...){
+#            panel.loess(x, y, span=1, degree=1, ...)
+            panel.grid()
+            panel.lmline(x, y, col="grey",...)
+            panel.xyplot(x, y, col=1, cex=0.5, ...)
+       },
+       layout=c(3, 1), aspect=1,
+       ylab=list(label=expression(sqrt("Ozone")), cex=0.6),
+       xlab=list(label="Wind Speed", cex=0.6)
+)
+
+
+p <- ggplot(airQ, aes(x=Wind, y=sqrt(Ozone))) +
+     geom_point() + facet_grid(.~Temperature)
+ print(p+geom_smooth(method="lm") + scale_y_continuous(expression(sqrt("Ozone")))
+       + scale_x_continuous(expression("Wind Speed"))+ theme(aspect.ratio=1))
+
+xyplot(sqrt(Ozone) ~ Temp|Wind_Speed,
+       data=airquality,
+       panel=function(x,y,...){
+            panel.loess(x, y, span=1, degree=1, ...)
+            panel.grid()
+            panel.lmline(x, y, col="grey",...)
+            panel.xyplot(x, y, col=1, cex=0.5, ...)
+       },
+       layout=c(3, 1), aspect=1,
+       ylab=list(label=expression(sqrt("Ozone")), cex=0.6),
+       xlab=list(label="Temperature", cex=0.6)
+)
+
+p <- ggplot(airQ, aes(x=Temp, y=sqrt(Ozone))) +
+     geom_point() + facet_grid(.~Wind_Speed)
+print(p+geom_smooth(method="lm") + scale_y_continuous(expression(sqrt("Ozone")))
+       + scale_x_continuous(expression("Temperature"))+ theme(aspect.ratio=1))
+
+trellis.par.set(theme = canonical.theme("postscript", col=FALSE))
+trellis.par.set(list(layout.widths=list(left.padding=0, right.padding=0,
+                       ylab.axis.padding=0, axis.right=0, key.ylab.padding=0)))
+
+xyplot(sqrt(Ozone) ~ Solar.R|Temperature*Wind_Speed,
+       data=airquality,
+       panel=function(x,y,...){
+#            panel.loess(x, y, span=1, degree=1, ...)
+            panel.grid()
+            panel.lmline(x, y, col="grey",...)
+            panel.xyplot(x, y, col=1, cex=0.5, ...)
+       },
+       aspect=1,
+       ylab=list(label=expression(sqrt("Ozone")), cex=0.6),
+       xlab=list(label="Solar Radiation", cex=0.6),
+       scales=list(x=list(alternating=c(1, 2, 1))),
+#       between=list(y=1),
+       par.strip.text=list(cex=0.4), 
+       par.settings=list(axis.text=list(cex=0.4))
+)
+
+p <- ggplot(airQ, aes(x=Solar.R, y=sqrt(Ozone))) +
+     geom_point() + facet_grid(Wind_Speed~Temperature)
+print(p+geom_smooth(method="lm") + scale_y_continuous(expression(sqrt("Ozone")))
+       + scale_x_continuous(expression("Solar Radiation"))+ theme(aspect.ratio=1))
+
+xyplot(sqrt(Ozone) ~ Wind|Solar_R*Temperature,
+             data=airquality,
+             panel=function(x,y,...){
+#            panel.loess(x, y, span=1, degree=1, ...)
+               panel.grid()
+               panel.lmline(x, y, col="grey",...)
+               panel.xyplot(x, y, col=1, cex=0.5, ...)
+             },
+             aspect=1,
+             ylab=list(label=expression(sqrt("Ozone")), cex=0.6),
+             xlab=list(label="Wind Speed", cex=0.6),
+             scales=list(x=list(alternating=c(1, 2, 1))),
+                                        #       between=list(y=1),
+             par.strip.text=list(cex=0.4),
+             par.settings=list(axis.text=list(cex=0.4)))
+
+p <- ggplot(airQ, aes(x=Wind, y=sqrt(Ozone))) +
+     geom_point() + facet_grid(Solar_Radiation~Temperature)
+print(p+geom_smooth(method="lm") + scale_y_continuous(expression(sqrt("Ozone")))
+       + scale_x_continuous(expression("Wind Speed"))+ theme(aspect.ratio=1))
+
+xyplot(sqrt(Ozone) ~ Temp|Wind_Speed*Solar_R,
+       data=airquality,
+       panel=function(x,y,...){
+#            panel.loess(x, y, span=1, degree=1, ...)
+            panel.grid()
+            panel.lmline(x, y, col="grey",...)
+            panel.xyplot(x, y, col=1, cex=0.5, ...)
+       },
+       aspect=1,
+       ylab=list(label=expression(sqrt("Ozone")), cex=0.6),
+       xlab=list(label="Temperature", cex=0.6),
+       scales=list(x=list(alternating=c(1, 2, 1))),
+#       between=list(y=1),
+       par.strip.text=list(cex=0.4),
+       par.settings=list(axis.text=list(cex=0.4)))
+
+
+p <- ggplot(airQ, aes(x=Temp, y=sqrt(Ozone))) +
+     geom_point() + facet_grid(Wind_Speed~Solar_Radiation)
+print(p+geom_smooth(method="lm") + scale_y_continuous(expression(sqrt("Ozone")))
+       + scale_x_continuous(expression("Temperature")) + theme(aspect.ratio=1))
+
+```
+
+## The River Cam Example
+
+This data set was collected by M Bruce Beck (1978) on the River Cam near Cambridge England. The data have been used in many studies in over twenty years since Beck's PhD work. The data set includes measurements of water quality variables dissolved oxygen (DO) and biochemical oxygen demand (BOD5), as well as selected variables of weather and physical conditions of the river (daily hours of sunlight, precipitation, water temperature, and river discharge). The data were collected daily from June 6 through August 25, 1972 (81 observations). All the variables were measured at both end of the 4.5 kilometer stretch of the River Cam. They were used for testing and evaluating stream water quality models of DO and BOD (Beck, 1978). The data became famous after the publication of a paper by Beck and Young (1976) on model structure identification, a method for detecting weakness of a model. Beck and Young (1976) concluded that algal growth constituted a significant part of the BOD-DO dynamic of the River Cam. The paper recommended a model that uses a simple low-pass filter to simulate algae growth. This low-pass filter has two thresholds for temperature and the sustained sunlight effect. These two threshold were determined without justification. Let us use the downstream DO as the response and study how DO is affected by other variables.
+
+```{r}
+cam <- read.table(paste(dataDIR, "cam.dat", sep="/"), header=T)
+head(cam)
+```
+In the 1970s and 1980s, water quality modeling was largely to understand how pollution (usually organic matter pollution) would change DO.  The measure of organic pollution is the amount of DO the pollutant consumes in 5 days (because water in River Thames usually does not linger more than 5 days).  The famous DO-BOD model of the 1930s was the basis of many models (including many models still in use).  Beck and Young was first to add algal component to the model and demonstrated how to decide when the component is needed.  I worked on this data set in late 1990s.  Here are some coplots.
+
+### The effect of sun light hour
+```{r}
+xyplot(ddo ~ sun, data=cam) ## not very clear
+```
+
+But algae won't grow if it is too cold, with or without sun.
+```{r}
+tmp <- equal.count(cam$temp, 4, 0.25)
+xyplot(ddo ~ sun | tmp, data = cam,
+        xlab = "Sunlight hour", ylab = "Downstream DO (mg/L)",
+        panel = function(x, y) {
+            panel.grid(h=-1, v= 2)
+            panel.xyplot(x, y)
+            panel.loess(x,y, span=1)
+        },
+        aspect = 1)
+```
+There is always a sunlight effect, but the effect is obvious only when the temperture is high.
+```
+snlgt <- equal.count(cam$sun, 6, 0.25)
+xyplot(ddo ~ temp | snlgt, data = cam,
+        xlab = "Temperature (C)", ylab = "Downstream DO (mg/L)",
+        panel = function(x, y) {
+            panel.grid(h=-1, v= 2)
+            panel.xyplot(x, y)
+            panel.loess(x,y, span=1)
+        }, layout=c(3,2),
+        aspect = 1)
+```
+Temperature is not a factor when sunlight hour is low.  The effect of temperature is likely a hockey stick model with a threshold of 19C.  
+
+But we can't control sunlight hour and temperature.  These plots simply show that these two factors explains much of the variation in DO.  When studying the effect of pollution (BOD), we cannot ignore the natural factors.  
+
+```{r}
+snlgt <- equal.count(cam$sun, 3, 0.25)
+tmp <- equal.count(cam$temp, 3, 0.25)
+xyplot(ddo ~ dbod | snlgt*tmp, data = cam,
+        xlab = "Downstream BOD", ylab = "Downstream DO (mg/L)",
+        panel = function(x, y) {
+            panel.grid(h=-1, v= 2)
+            panel.xyplot(x, y)
+##            panel.lmline(x,y)
+            panel.loess(x, y, span=1)
+        },
+        aspect = 1)
+
+xyplot(ddo ~ ubod | snlgt*tmp, data = cam,
+        xlab = "Downstream BOD", ylab = "Downstream DO (mg/L)",
+        panel = function(x, y) {
+            panel.grid(h=-1, v= 2)
+            panel.xyplot(x, y)
+##            panel.lmline(x,y)
+            panel.loess(x, y, span=1)
+        },
+        aspect = 1)
+```
+
+I tried many variations of these coplots (number of intervals, how the loess line is fit, ...).  The underlying relationship between DO and BOD is highly nonlinear.  As a result, we did not find a clean pattern as in the airquality data example.  

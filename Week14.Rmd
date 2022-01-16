@@ -1,0 +1,262 @@
+# Week 13
+
+## Nutrient Loading and Flow from Maumee
+
+Heidelberg University monitors water quality on several tributaries near Lake Erie.  These long-term intensive monitoring data are often used for estimating loadings of various pollutants to Lake Erie.  Because the Maumee River basin is the primary agriculture watershed and its loadings of nutrients to Lake Erie western basin are considered as the most important factor in predicting harmful algal blooms in the lake.  In fact, almost all predictions of HABs are based on spring and summer loadings of TP from Maumee River.
+
+Because most monitoring programs do not measure water quality daily, calculating loadings of TP based on weekly or less frequently sampled data is a topic of study for many years.  Currently, the dominant approach is to develop a regression model using available TP concentration data as the response valable and corresponding flow as the predictor.  The model is then used to ``estimate'' TP (or other pollutants) concentrations for days without monitroing data.
+
+The concentration -- flow relationship is often noisy.  As a result, the simple log-log linear regression is often inadequate.  Many authors developed load estimation methods for load estimation. Frequently, the Heidelberg monitoring data were used as a test case. To use the Heidelberg data to test a load estimation method, we often sample a subset of the data to build the load estimation model and predict annual loads by predicting the concentrations for the days set-aside during model fitting.  I found that almost all load estimation models failed to consider estimation uncertainty.  This uncertainty can be reflected in the differences in a concentration-flow model when fit using different subsets of the Waterville data.
+
+### Objectives
+The project is to prepare the Waterville data for a study on estimating the uncertainty in the estimated TP loading using various sampling schedules.  The uncertainty is represented in the estimation standard deviation.
+
+### Methods
+There are two sources of uncertainty in an estimated annual TP load.  One is the model prediction error and the other is the sampling variation.  Most existing methods ignore both. Some authors discussed the model prediction error but often limited to the residual variance. No attention was given to the sampling error.
+
+In this project, we will focus on the sampling error.  To evaluate variation due to sampling design, we can use simulation.  For example, when evaluating a monthly sampling plan, we can repeatedly sample the data within a canlendar month.
+
+The project will include: 
+- Exploratory data analysis
+- Adding categorical variables to represent two sampling plans
+  
+### Results
+
+#### Reading data
+
+```{r}
+wvldata <- tbl_df(read.csv(paste(dataDIR, "maumeedata.csv", sep="/"), 
+                    header=T, stringsAsFactors=F, na.strings = "#N/A"))
+wvldata
+names(wvldata)<-c(
+"Date", "Days741001","SampleWindow","Flow","SS","TP","SRP",                               
+"NO23","TKN","Chloride","Sulfate","Silica","Conductivity",
+"Future","Month")
+  wvldata[wvldata<0] <-  NA
+```
+
+#### Processing dates
+
+```{r}
+wvldata$Rdate <- as.Date(wvldata$Date, format="%m/%d/%y %H:%M")
+  wvldata$mnth <- ordered(format(wvldata$Rdate, "%b"), levels=month.abb)
+  wvldata$yrmn <- format(wvldata$Rdate, "%Y-%b")
+  wvldata$yrwk <- format(wvldata$Rdate, "%Y-%U")
+  wvldata$week <- format(wvldata$Rdate, "%U")
+  wvldata$wknd <- format(wvldata$Rdate, "%w") ## weekend = no sampling
+  wvldata$wknd <- wvldata$wknd==0 | wvldata$wknd==6
+  wvldata$julian <- format(wvldata$Rdate, "%j")
+  wvldata$yr <- format(wvldata$Rdate, "%Y")
+```
+  
+#### Basic plots
+
+```{r}
+  plot(TP ~ Rdate, data=wvldata, type="l", las=1, xlab="Date", ylab="TP", log="y")
+  plot(SRP ~ Rdate, data=wvldata, type="l", xlab="Date", ylab="SRP", las=1, log="y")
+  plot(SRP/TP ~ Rdate, data=wvldata, type="l", xlab="Date", ylab="SRP:TP", las=1, log="y")
+  abline(h=1, col="red")
+  
+  plot(SRP/TP ~Rdate, data=wvldata, type="l")
+  abline(h=1, col="red")
+  histogram(~TP|mnth, data=wvldata)
+  histogram(~SRP|mnth, data=wvldata)
+  histogram(~log(TP)|mnth, data=wvldata)
+  histogram(~log(SRP)|mnth, data=wvldata) ## negative SRP
+
+  trellis.par.set(theme=col.whitebg())
+  xyplot(TP~Flow, data=wvldata)
+  xyplot(log(TP)~log(Flow), data=wvldata)
+  xyplot(log(SRP)~log(Flow), data=wvldata)
+
+  xyplot(log(TP)~log(Flow)|mnth, data=wvldata)
+  xyplot(log(SRP)~log(Flow)|mnth, data=wvldata)
+```
+
+#### Use `reshape2`
+Using `reshape`, we trim the data to include only the necessary variables.
+
+```{r}
+wvl.molten <- melt(as.data.frame(wvldata), id=c("Rdate", "mnth","yrmn","yrwk","julian","yr"),  measure.vars=c("Flow","SS","TP","SRP","NO23","TKN")) 
+
+## A known problem with `dplyr`: when using `tbl_df`, `melt` will return an error message 
+### Error in match.names(clabs, names(xi)) : names do not match previous names
+
+tmp <- wvl.molten$yr > "1981"
+
+wvl.daily <- dcast(wvl.molten[tmp,], Rdate ~ variable, mean)
+tmp <- range(wvl.daily$Rdate)
+date <- seq(tmp[1], tmp[2], 1)
+temp.dates <- data.frame(Rdate=date, 
+                       mnth=ordered(format(date, "%b"), levels=month.abb), 
+                       yrmn = format(date, "%Y-%b"), 
+                       yrwk = format(date, "%Y-%U"),
+                       week = format(date, "%U"),
+                       wknd = format(date, "%w")==0 | format(date, "%w")==6, ## weekend = no sampling
+                       julian = format(date, "%j"), 
+                       yr = format(date, "%Y")
+                   )
+
+  wvl.daily <- merge(x=wvl.daily, y=temp.dates, by="Rdate", all=T)
+  wvl.molten2 <- melt(wvl.daily, id=c("Rdate", "mnth","yrmn","yrwk","wknd","julian", "week","yr"), 
+                     measure.vars=c("Flow","SS","TP","SRP","NO23","TKN"))
+
+  tbl_df(wvl.daily)
+
+```
+
+
+
+#### Calculating Daily Loads
+
+```{r}
+  wvl.daily$TPload <- wvl.daily$TP * wvl.daily$Flow * 0.0283168 * 0.001 * 86400 ## kg/day
+  wvl.daily$TNload <- (wvl.daily$TKN+wvl.daily$NO23) * wvl.daily$Flow * 0.0283168 * 0.001 * 86400
+  wvl.daily$TKNload <- wvl.daily$TKN * wvl.daily$Flow * 0.0283168 * 0.001 * 86400
+  wvl.daily$SRPload <- wvl.daily$SRP * wvl.daily$Flow * 0.0283168 * 0.001 * 86400
+
+  xyplot(log(TPload) ~ Rdate, data=wvl.daily)
+  xyplot(log(SRPload) ~ Rdate, data=wvl.daily)
+  xyplot(log(TKNload) ~ Rdate, data=wvl.daily)
+
+  plot(tapply(log(wvl.daily$TPload), wvl.daily$yr, mean, na.rm=T))
+  plot(tapply(log(wvl.daily$SRPload+0.08), wvl.daily$yr, mean, na.rm=T))
+```
+
+The cumulative sum is calculated by the function `cumsum`
+
+```{r}
+  tp.cumsum <- tapply(wvl.daily$TPload, wvl.daily$yr, cumsum)
+```
+  
+A few missling values in flow and/or concentration resulted in the
+cumulative loads unusable.  A useful way to impute missing values in a
+data with a two-way table structure is the use of the median polishing
+(Mosteller and Tukey, 1977). Median polishing a an exploratory data
+analysis tool.  In this case, nutrient loading has a seasonal pattern
+and a long-term trend.  We can use week or month to describe the
+season and year to describe the long-term trend.  In other words,
+nutrient load is affected by two factors.  A simple way to explore the
+effects of these factors is to assume that their effects are additive.
+Such that, we can decompose a weekly mean load as a sum of three
+terms: the long-term trend, the seasonal trend, and the remainder.  If
+we use week as a measure of seasonal effect, we are interested in
+estimating the weekly means for all years and the data can be
+transformed into a matrix with rows representing years and columns
+representing weeks.
+
+
+```{r}
+wvl.weekly <- dcast(wvl.molten2, yr+week ~ variable, median, na.rm=T)
+year.weeks <- tapply(wvl.weekly$TP, wvl.weekly$yr, length)
+
+to2 <- function(x){
+    ## conver a single digit integer to 0x
+    return(ifelse (x<10, paste("0",x, sep=""), as.character(x)))
+}
+
+  ## construct a matrix of TP for median polish
+  TP.weekly <- matrix(NA, nrow=length(year.weeks), ncol=max(year.weeks))
+  for (i in 1:length(year.weeks)){
+    for (j in 1:max(year.weeks)){
+      temp <- wvl.weekly$yr==names(year.weeks)[i] & wvl.weekly$week==to2(j-1)
+      if (sum(temp)>0)
+        TP.weekly[i,j] <- wvl.weekly$TP[temp]
+    }
+  }
+
+  med.TP <- medpolish(TP.weekly, na.rm=T)
+
+```
+
+The resulting object `med.TP` contains the row (year) and column
+(season measured by week) effects and the overall median.  To replace
+a missing value of TP, we go back to the daily data file and find the
+missing value.  The year and week associated with the missing value
+will be used to extract the row and column effect:
+
+```{r}
+## TP
+  temp <- is.na(wvl.daily$TP)
+  if (sum(temp) >0){
+    row.yr <- as.numeric(wvl.daily$yr)-min(as.numeric(wvl.daily$yr))+1
+    col.wk <- as.numeric(wvl.daily$week) + 1
+    wvl.daily$TP[temp] <- med.TP$overall + med.TP$row[row.yr[temp]] + med.TP$col[col.wk[temp]]
+  }
+```
+
+Now we need to do the same for `SRP`, `TKN`, `NO23`, and `flow`.  To
+make the process tidy, I will write a function.
+
+```{r}
+## an R function for median polishing
+
+  NAimpute <- function(col, daily=wvl.daily, weekly=wvl.weekly){
+    yr.wks <- tapply(weekly[,col], weekly$yr, length)
+    wkly <- matrix(NA, nrow=length(yr.wks), ncol=max(yr.wks))
+    for (i in 1:length(yr.wks)){
+      for (j in 1:max(yr.wks)){
+        temp <- weekly$yr==names(yr.wks)[i] & weekly$week==to2(j-1)
+        if (sum(temp)>0)
+        wkly[i,j] <- weekly[temp, col]
+      }
+    }
+    med <- medpolish(wkly, na.rm=T)
+    tmp <- is.na(daily[,col])
+    print(paste("Number of NAs to be imputed:", sum(tmp)))
+    if (sum(tmp)>0){
+      row.yr <- as.numeric(daily$yr)-min(as.numeric(daily$yr))+1
+      col.wk <- as.numeric(daily$week) + 1
+      daily[tmp, col] <- med$overall + med$row[row.yr[tmp]] + med$col[col.wk[tmp]]    
+    }
+    return(daily[,col])
+  }
+```
+
+With this function, we can process the data easily:
+```{r}
+  wvl.daily$TP <- NAimpute(col="TP")
+  wvl.daily$SRP <- NAimpute(col="SRP")
+  wvl.daily$SRP <- ifelse(wvl.daily$SRP<0, 0, wvl.daily$SRP)
+  wvl.daily$Flow <- NAimpute(col="Flow")
+  wvl.daily$NO23 <- NAimpute(col="NO23")
+  wvl.daily$TKN <- NAimpute(col="TKN")
+```
+
+With missing values imputed, I will now calculate daily loads and the cumulative loads
+
+```{r}
+  wvl.daily$TPld <- as.vector(wvl.daily$TP) * as.vector(wvl.daily$Flow)
+  wvl.daily$cumldTP <- unlist(tapply(wvl.daily$TPld, wvl.daily$yr, cumsum))
+  wvl.daily$SRPld <- wvl.daily$SRP * wvl.daily$Flow
+  wvl.daily$cumldSRP <- unlist(tapply(wvl.daily$SRPld, wvl.daily$yr, cumsum))
+  wvl.daily$TKNld <- wvl.daily$TKN * wvl.daily$Flow
+  wvl.daily$cumldTKN <- unlist(tapply(wvl.daily$TKNld, wvl.daily$yr, cumsum))
+  wvl.daily$NOxld <- wvl.daily$NO23 * wvl.daily$Flow
+  wvl.daily$cumldNOx <- unlist(tapply(wvl.daily$NOxld, wvl.daily$yr, cumsum))
+  wvl.daily$cumldFLW <- unlist(tapply(wvl.daily$Flow, wvl.daily$yr, cumsum))
+
+  xyplot(cumldTP ~ as.numeric(julian), data=wvl.daily, group=yr)
+  xyplot(cumldTKN ~ as.numeric(julian), data=wvl.daily, group=yr)
+  xyplot(cumldSRP ~ as.numeric(julian), data=wvl.daily, group=yr)
+  xyplot(cumldNOx ~ as.numeric(julian), data=wvl.daily, group=yr)
+
+  xyplot(cumldTP~ as.numeric(mnth)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(log(cumldTP)~ as.numeric(mnth)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(cumldSRP~ as.numeric(mnth)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(cumldTKN~ as.numeric(mnth)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(cumldNOx~ as.numeric(mnth)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+
+  xyplot(cumldTP~ as.numeric(julian)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(cumldSRP~ as.numeric(julian)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(cumldTKN~ as.numeric(julian)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+  xyplot(cumldNOx~ as.numeric(julian)|yr, data=wvl.daily, subset=as.numeric(wvl.daily$yr)>14)
+
+  xyplot(cumldFLW~ as.numeric(julian)|yr, data=wvl.daily, #subset=as.numeric(wvl.daily$yr)>14, 
+         xlab="Julian Days", ylab="Flow", cex=0.5)
+
+  xyplot(Flow~ as.numeric(julian)|yr, data=wvl.daily, #subset=as.numeric(wvl.daily$yr)>14, 
+         xlab="Julian Days", ylab="Flow", cex=0.5)
+  TPld <-  ts(wvl.daily$TPld, start=c(1982,1), freq=365.25)
+  write.csv(wvl.daily, file="maumeedaily.csv")
+```

@@ -1,0 +1,298 @@
+
+
+# Week 3:Summary Statistics
+
+Scientists almost always calculate average and standard deviation of the data of interest.  
+But we don't always learn why.  The answer lies in the history of the normal
+distribution.
+
+In 1809, Carl Friedrich Gauss published a monograph commonly known as
+\textit{Theoria Motus} (see for example: Theory of Motion of the
+Heavenly Bodies Moving About the Sun in Conic Sections: A Translation
+of Theoria Motus, Dover Phoenix Editions, ISBN 0486439062). In it,
+Gauss derived the probability law of measurement error as a
+justification for using the least squares method for estimating a
+mean. This probability law is later known as the normal or Gaussian
+distribution. Pierre-Simon Laplace published the central limit theorem
+in 1812, which states that the distribution of sample averages of
+independent random variables can be approximated by the normal
+distribution, regardless of the original distribution from which these
+random variables were drawn.  The closer the original distribution is
+to normal, the better the approximation will be, particularly with
+small sample sizes.
+
+In environmental studies, the normal distribution is particularly
+important because many environmental variables (concentration
+variables in particular) can be approximated by the log-normal
+distribution (Ott, 1995). Thus, a rule of thumb in environmental
+statistics is that we should log-transform concentration variables
+before statistical analysis (von Belle, 2002), so that properties of
+normal distributions can be used advantageously. An important result
+of normal distribution theory is that the ``best'' estimator of the
+normal distribution mean is the sample average. It is the best because
+it is unbiased, and least variable, and it is also a maximum
+likelihood estimator (MLE). Consequently, sample averages and
+standard deviations are commonly reported statistics in scientific
+studies. In environmental standard assessment, these normal
+distribution properties helped justify to move to a hypothesis
+testing approach away from a raw score assessment approach.
+
+In other words, when we calculate sample average and sample standard
+deviation, we imply that the data can be approximated by te normal
+distribution.   Whether we know the underlying assumption or not, this
+practice is common.  But if we assume that a concentration variable
+can be approximated by the log-normal distribution, we should
+calculate the log mean and log standard deviation. 
+
+Which summary statistics to use should be based on the assumption we
+imposed on the data.  To learn about the distribution of the data, we
+need exploratory data analysis, mostly through graphical display.
+
+## Anatomy of a Plot
+
+A plot consists of a plot region surrounded by margins.  Margins
+include figure margin and outer margin (see K\&V for details).  The
+next R code chunk defines the layout of a plot:
+
+```{r}
+par(oma=rep(3, 4), bg="grey80")
+plot(c(0, 1), c(0, 1), type="n", ann=FALSE, axes=FALSE)
+box("outer", col="grey")
+# set clipping to figure region
+par(xpd=TRUE)
+# deliberately draw a stupidly large rectangle
+rect(-1, -1, 2, 2, col="grey90")
+box("figure")
+# set clipping back to plot region
+par(xpd=FALSE)
+# deliberately draw a stupidly large rectangle
+rect(-1, -1, 2, 2, col="grey80")
+box("plot", lty="dashed")
+text(.5, .5, "Plot Region")
+mtext("Figure Region", side=3, line=2)
+for (i in 1:4)
+    mtext(paste("Outer margin", i), side=i, line=1, outer=TRUE)
+```
+
+## Customizing a Plot
+
+We use R function `par` to customize a plot.  In the above code chunk,
+the first line `par(oma=rep(3,4))` sets the outermargin to 3 lines of
+text on each side.  The option `oma` is specified by a vector of 4
+numeric values, indicating the outer margin on bottom, left, top, and
+right.  `oma=c(4, 3, 1, 1)` defines outer margins of 4 lines of text
+at the bottom, 3 lines to the left, 1 line at the top, and 1 line to
+the right. The outer margin defines the ``figure region.''  
+
+Inside the figure region, we have a plot region surrounded by
+margins.  Margins of a figure is set by `mar` (margins in lines of
+texts) or `mai` (in inches).  The default margin is
+`mar=c(5, 4, 4, 2)+0.1`.  Again, the margins are specified in the
+order of bottom, right, top, and left.
+
+By default, R will use the range of the data to set coordinate
+extremes.  But we can also set the coordinate ranges using
+`usr=c(x.lo,x.hi, y.lo,y.hi)`.
+
+We can also put multiple figures together (e.g., `mfrow=c(3,2)`),
+specify axes and tick marks.  For example, my default setting is:
+
+
+```{r, eval=FALSE}
+par(mar=c(3,3,1,1), mgp=c(1.25, 0.125, 0), las=1, tck=0.01)
+```
+where, `mar` specifies margin in lines of texts, `mgp` gives margin
+lines for the axis title, axis labels, and axis line, `las` defines
+the style of axis labels (0 -- always parallel to the axis, 1 --
+always horizontal, 2 -- always perpendicular to the axis, and 3 --
+  always verticle).
+
+## Graphical Functions
+When plotting, we use various graphical functions.  These functions use some common options:
+
+- `xlim, ylim` -- range of variable plotted on $x$ and $y$ axis
+- `pch, col, lty` -- plotting character, color, and line type
+- `xlab, ylab` -- labels of $x$ and $y$ axis
+- `main, sub`-- main and sub titles
+
+## Example: Lake Erie Harmful Algal Bloom Monitoring
+
+Environmental factors affecting the production of cyanobacterial toxin are explored using two large data sets to support developing strategies for con- trolling and mitigating harmful blooms. Although nutrients, particularly phosphorus, oversupply is the consensus root cause of harmful blooms, factors affecting the production of cyanotoxins are less well studied. Using two large data sets, we analyze the potential factors associated with the variation of microcystin concentrations with an aim of developing a predictive model
+
+## Data
+
+Reading data and plot sampling sites using R map
+```{r}
+  ## non-detect (nd, bd, below detect) are replaced with 0
+  ## secchi >x is replaced with x (x = 7 or 5)
+
+eriedata <- read.csv(paste(dataDIR, "ErieData.csv", sep="/"), header=T)
+#head(eriedata)
+```
+Data points are labeled by sites (a separate variable).  However, because 
+these sampling sites are in the middle of a big lake, each visit to a site 
+is based on a GPS reading.  A first step is to see if there are any errors 
+in the locations of sampling sites. First, I will check the latitude and 
+longitude of all sites:
+```{r}
+  plot(Latitude~Longitude, data=eriedata)
+  ## Five data entry errors:
+  ##  1. Latitude for WE8 (10/21/13) was 875.7333 --
+  ##     replaced mean latitude of other WE8 with Latitude < 48
+  ##  2. Latitude for WE8 (8/13/12) was 49.8369 --
+  ##     replaced mean latitude of other WE8 with Latitude < 48
+  eriedata$Latitude[eriedata$Latitude>48] <-
+      mean(eriedata$Latitude[eriedata$Station=="WE8" &
+                                 eriedata$Latitude < 48])
+  ##  3. Longitude for WE4 (10/15/14) was 88.1940 -- should be 83.1940?
+  eriedata$Longitude[eriedata$Longitude>87] <-
+      eriedata$Longitude[eriedata$Longitude>87]-5
+  ##  4. Latitude for WE7 (7/6/10) was 40.7649 -- should be 41.6749?
+  eriedata$Latitude[eriedata$Latitude<41.1 &
+                        eriedata$Station == "WE7"] <- 41.6749
+  ##  5. Latitude for WE 2 (5/15/12) was 41.0127 -- 41.7627?
+  eriedata$Latitude[eriedata$Latitude<41.1 &
+                        eriedata$Station == "WE2"] <- 41.7622
+```
+
+Once location errors are corrected, sampling sites are plotted on a map
+
+```{r}
+  eriedata$Longitude <- -eriedata$Longitude
+  erieLOC <- eriedata[,c("Latitude","Longitude")]
+  coordinates(erieLOC) <- c("Longitude","Latitude")
+
+### using maps:
+  my.box<-function(xlim, ylim, ...){
+      segments(x0=xlim, y0=rep(ylim[1],2), x1=xlim, y1=rep(ylim[2], 2), ...)
+      segments(y0=ylim, x0=rep(xlim[1],2), y1=ylim, x1=rep(xlim[2], 2), ...)
+  }
+
+##tikz(file=paste(plotDIR, "sampleLOC.tex", sep="/"),
+##       height=7, width=7,standAlone=F)
+  par(mar=rep(0, 4))
+  maps::map("usa", fill=TRUE, col="grey80", xlim=c(-83.5,-82.5),
+      ylim=c(41.4, 42.1))
+  plot(erieLOC, pch=2, col="blue", add=T)
+
+  maplocs <- maps::map(projection="sp_mercator", wrap=TRUE, lwd=0.1,
+                 col="grey", xlim=c(-180, 0),
+                 interior=FALSE, orientation=c(90, 180, 0), add=TRUE,
+                 plot=FALSE)
+  xrange <- range(maplocs$x, na.rm=TRUE)
+  yrange <- range(maplocs$y, na.rm=TRUE)
+  aspect <- abs(diff(yrange))/abs(diff(xrange))
+  # customised to 6.5 by 4.5 figure size
+  par(fig=c(0.5, 0.99, 0.99 - 0.5*aspect*4.5/6.5, 0.99),
+      mar=rep(0, 4), new=TRUE)
+  plot.new()
+  plot.window(xlim=c(1,2.00),
+              ylim=c(0.45,1))
+  maps::map(projection="sp_mercator", wrap=TRUE, lwd=0.25, fill=F,
+      col=gray(0.25), interior=TRUE, orientation=c(90, 180, 0),
+      add=TRUE)
+  my.box(xlim=c(1.7-0.015,1.725-0.015), ylim=c(0.79, 0.81))
+```
+
+Summary statistics is almost always a good place to start when examine a data file.
+
+```{r}
+#summary(eriedata)
+```
+There are a large number of missing values in the data.  The variable of interest is the 
+microcystin concentration.  We have two forms of MC: particular and dissolved  
+(`pMC` and `dMC`, respectively).  The variable `dMC` has 672 missing values, while `pMC`
+does not have missing values.  However, the method used for measuring MC has a ``detection 
+limit.''  Typically, when the measured concentrations are below the limit, we report them 
+as equal to the detection limit or 0 or half of the detection limit.  In this case, 
+we see the minimum `pMC` value is 0, suggesting that 0 is used for values below detection limit. 
+Based on personal communication, I learned that the detection limit for this data set is 0.1.  
+In other words, the smallest non-zero concentration value should be 0.1.  
+```{r}
+sort(unique(eriedata$pMC[eriedata$pMC>0]))[1:10]
+```
+However, the result from this line of code indicates otherwise, suggesting various practices 
+were used over time.  After consulting with the person responsible for the monitoring project, 
+I replaced all values less than 0.1 with 0.1. This practice is definitely not ideal.
+```{r}
+eriedata$pMC[eriedata$pMC<0.1] <- 0.1
+par(mar=c(3,3,1,1), mgp=c(1.25, 0.125, 0), las=1, tck=0.01)
+plot(pMC ~ POC, data=eriedata)
+plot(pMC ~ POC, data=eriedata, log="xy")
+plot(pMC ~ POC, data=eriedata, log="xy", xlab="Particular Organic Carbon", ylab="Microcystin")
+plot(pMC ~ POC, data=eriedata, log="xy", xlab="Particular Organic Carbon", ylab="Microcystin", pch=1, cex=0.5)
+```
+
+## MC Distribution
+Knowledge the distribution of a variable is the basis of statistical inference.  Statistical inference starts with a statistical distribution assumption on the variable of interest.  Consequently, proposing a reasonable distribution assumption is the key to a successful statistical analysis.  There are many theoretcal distributions, most of them have complicated probability density functions.  
+
+In order to make a reasonable assumption, we need to know how to summarize the distribution of the data.  We want to know a few simple facts before we can propose a reasonable distribution assumption.  For example, what type of data do we have, categorical or numerical, if categorical, are the categories ordered; whether the variable is limited to be positive (or, more generally, bounded); whether the distribution of a numeric variable is symmetric; and  whether the variation of the variable varies.  Some of the features do not need statistical analysis; for example, stream flow cannot be negative.  Some can be shown using simple graphics.
+
+### Histogram and boxplot
+Go to page 68 of K \& V for histogram
+
+
+Page 70 for box plot
+
+### Comparing to the normal distribution
+
+The normal distribution is the most important distribution in statistics. We often need to evaluate whether the data can be approximated by the normal distribution before we can select an appropriate statistical method.  Assessing normality is typically done using the normal quantile-quantile plot (Normal Q-Q plot).  
+
+A normal Q-Q plot is based on the relationship between the standard normal variable ($z\sim N(0,1)$) and a  normal distributed variable with mean $\mu$ and standard deviation $\sigma$ ($y\sim N(\mu, \sigma)$):
+\[
+y_q = \mu + \sigma z_q
+\]
+That is, the $q$ quantile of $y$ is a linear function of the $q$ quantile of $z$.  This relationship implies that if we can pair the quantiles of the data we want to evaluate to the quantiles of the standard normal distribution, we can evaluate whether the data is approximately normal by plotting the data quantiles against the standard normal quantiles.  The the points on the plot form a straight line, the data have a normal distribution.
+
+When we have a data set, we can calculate the approximate quantile of each data point.  For example, in R, the *i*th ranked data point has a quantile of 
+\[
+q_i = \frac{i-0.5}{n}
+\]
+For a data set with $n=25$, the 5th ranked data point is the 18th percentile of the data.  Or, $y_{0.18} = y^{(5)}$.  For a unit (standard) normal variable, the 18th percentile can be calculated usibg the function `qnorm`.  
+```{r}
+qnorm(0.18)
+```
+The value `r qnorm(0.18)` is paired with $y^{(5)}$. We can do the same for all data points and plot them against their respective unit normal quantiles.  The process of finding quantiles is programmed in the functions `qqnorm` and `qqline`:
+```{r, fig.width=5, fig.align='center'}
+y <- rnorm(100)
+qqnorm(y)
+qqline(y)
+```
+
+### Comparing Two Distributions
+
+We often are interested in comparing the bloom size/volume in different months.
+
+* Overlying two histograms
+
+```{r, fig.width=5, fig.align="center"}
+#Random numbers
+h2<-rnorm(1000,4)
+h1<-rnorm(1000,6)
+
+# Histogram Grey Color
+hist(h1, col=rgb(0.1,0.1,0.1,0.5),xlim=c(0,10), ylim=c(0,200), main="Overlapping Histogram")
+hist(h2, col=rgb(0.8,0.8,0.8,0.5), add=T)
+box()
+
+# Histogram Colored (blue and red)
+hist(h1, col=rgb(1,0,0,0.5),xlim=c(0,10), ylim=c(0,200), main="Overlapping Histogram", xlab="Variable")
+hist(h2, col=rgb(0,0,1,0.5), add=T)
+box()
+```
+
+
+* Side-by-side box plots
+```{r, fig.width=5, fig.align="center"}
+boxplot(h1, h2)
+## or:
+exdata<- data.frame(y=c(h1, h2), grp=rep(c(1,2), each=1000))
+boxplot(y~grp, data=exdata)
+## or:
+boxplot(y~grp, data=exdata, names=c("grp1","grp2"))
+
+## now try:
+exdata$grp <- ordered(exdata$grp, labels=c("group 1", "group 2"))
+boxplot(y~grp, data=exdata)
+
+```
